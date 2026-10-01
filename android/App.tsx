@@ -70,11 +70,17 @@ export default function App() {
             <Pressable accessibilityRole="button" onPress={() => setScreen({ name: "team", id: item.id })}>
               <Text style={styles.name}>{item.name}</Text>
               <Text style={styles.copy}>
-                {item.picks
-                  .map((id) => contestant(id))
-                  .filter((row) => row != null)
-                  .map((row) => displayName(row))
-                  .join(" · ")}
+                {item.picks.map((id, index) => {
+                  const row = contestant(id);
+                  if (!row) return null;
+                  const out = isBootPublic(row, now);
+                  return (
+                    <Text key={id} style={out ? styles.outName : undefined}>
+                      {index > 0 ? " · " : ""}
+                      {displayName(row)}
+                    </Text>
+                  );
+                })}
               </Text>
             </Pressable>
           )}
@@ -113,6 +119,7 @@ const styles = StyleSheet.create({
   name: { color: "#f4efe6", fontSize: 20, marginTop: 14 },
   copy: { color: "#b7aea2", fontSize: 15, marginTop: 4 },
   out: { color: "#e10600", fontSize: 18, marginTop: 10, fontWeight: "700" },
+  outName: { color: "#e10600", fontWeight: "700" },
   link: { color: "#e2b340", fontSize: 16, marginVertical: 8 },
   boot: { color: "#fff", backgroundColor: "#e10600", padding: 10, fontWeight: "700" },
 });

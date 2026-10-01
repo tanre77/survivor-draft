@@ -1,13 +1,17 @@
 import { createContext, useContext, useEffect, useId, useMemo, useState, type ReactNode } from "react";
-import { ChevronLeft, ChevronRight, LayoutGrid, ScrollText, Search, Trophy, UserRound, Users, X } from "lucide-react";
+import { BarChart3, ChevronLeft, ChevronRight, LayoutGrid, ScrollText, Search, Trophy, UserRound, Users, X } from "lucide-react";
 import { HistoryBoard, PastTeam, RulesBoard, SeasonPage } from "@/components/archive";
+import { ImportLeague } from "@/components/import-league";
 import { reportError, startDiagnostics } from "@/lib/diagnostics";
 import { CreateLeague, CustomBoard, CustomTeam, LeagueHome } from "@/components/league-home";
+import { StatsBoard } from "@/components/stats-board";
 import { loadCustomLeagues, newId, saveCustomLeagues, type CustomLeague } from "@/data/custom-leagues";
+import type { ImportedSheet } from "@/data/import-sheet";
 import {
   SEAT_KEY,
   contestantBlob,
   contestantById,
+  contestantByName,
   contestants,
   displayName,
   isBootPublic,
@@ -22,7 +26,7 @@ import {
 } from "@/data/league";
 
 type CastFilter = "all" | "savu" | "toka" | "in" | "out" | "mine";
-type Tab = "league" | "cards" | "mine" | "past" | "rules";
+type Tab = "league" | "cards" | "mine" | "past" | "rules" | "stats";
 
 const ClockContext = createContext(0);
 
@@ -32,6 +36,7 @@ function useNow(): number {
 type Place =
   | { view: "home" }
   | { view: "make" }
+  | { view: "import" }
   | { view: "s51" }
   | { view: "custom"; id: string }
   | { view: "past"; id: string };
@@ -159,7 +164,7 @@ export function DraftLeague() {
   }
 
   const liveSeat = place.view === "s51" ? seat : null;
-  const bare = place.view === "home" || place.view === "make";
+  const bare = place.view === "home" || place.view === "make" || place.view === "import";
   const showSearch = liveSeat && !teamId && (tab === "league" || tab === "cards");
   const showNav = Boolean(liveSeat);
   const panel = stack[stack.length - 1] ?? null;
@@ -177,7 +182,7 @@ export function DraftLeague() {
   return (
     <ClockContext.Provider value={now}>
     <div className="min-h-dvh bg-bg text-fg">
-      {place.view !== "home" && place.view !== "make" && (
+      {place.view !== "home" && place.view !== "make" && place.view !== "import" && (
         <header className="safe-top sticky top-0 z-20 border-b border-line bg-bg/95 backdrop-blur">
           <div className="mx-auto flex max-w-5xl items-end justify-between gap-3 px-4 pt-3 pb-3">
             <div>
@@ -260,6 +265,7 @@ export function DraftLeague() {
               setPastTeam(null);
               setPlace({ view: "past", id });
             }}
+            onImport={() => setPlace({ view: "import" })}
           />
         )}
         {place.view === "make" && (
@@ -269,6 +275,16 @@ export function DraftLeague() {
               setLeagues((list) => [league, ...list]);
               setCustomSeat(null);
               setPlace({ view: "custom", id: league.id });
+            }}
+          />
+        )}
+        {place.view === "import" && (
+          <ImportLeague
+            onCancel={() => setPlace({ view: "home" })}
+            onImport={(sheets) => {
+              setLeagues((list) => [...importedLeagues(list, sheets), ...list]);
+              setCustomSeat(null);
+              setPlace({ view: "home" });
             }}
           />
         )}
@@ -346,15 +362,17 @@ export function DraftLeague() {
         )}
         {liveSeat && !teamId && tab === "past" && pastTeam && <PastTeam seasonId={pastTeam.seasonId} name={pastTeam.name} />}
         {liveSeat && !teamId && tab === "rules" && <RulesBoard />}
+        {liveSeat && !teamId && tab === "stats" && <StatsBoard seatName={liveSeat.name} />}
       </main>
 
       {liveSeat && (
         <nav className="dock fixed inset-x-0 bottom-0 z-30 border-t border-line bg-bg/95 backdrop-blur">
-          <div className="mx-auto grid max-w-5xl grid-cols-5">
+          <div className="mx-auto grid max-w-5xl grid-cols-6">
             <TabButton icon={<Users className="size-5" />} label="League" active={tab === "league" && teamId !== liveSeat.id} onClick={() => selectTab("league")} />
             <TabButton icon={<LayoutGrid className="size-5" />} label="Cards" active={tab === "cards" && !teamId} onClick={() => selectTab("cards")} />
             <TabButton icon={<UserRound className="size-5" />} label="Mine" active={teamId === liveSeat.id} onClick={() => selectTab("mine")} />
             <TabButton icon={<Trophy className="size-5" />} label="Past" active={tab === "past" && !teamId} onClick={() => selectTab("past")} />
+            <TabButton icon={<BarChart3 className="size-5" />} label="Stats" active={tab === "stats" && !teamId} onClick={() => selectTab("stats")} />
             <TabButton icon={<ScrollText className="size-5" />} label="Rules" active={tab === "rules" && !teamId} onClick={() => selectTab("rules")} />
           </div>
         </nav>
@@ -374,6 +392,32 @@ export function DraftLeague() {
     </div>
     </ClockContext.Provider>
   );
+}
+
+function importedLeagues(existing: CustomLeague[], sheets: ImportedSheet[]): CustomLeague[] {
+  const names = new Set(existing.map((league) => league.name.toLowerCase()));
+  return sheets.map((sheet) => {
+    let name = sheet.name;
+    if (names.has(name.toLowerCase())) name = `${name} sheet`;
+    while (names.has(name.toLowerCase())) name = `${name} again`;
+    names.add(name.toLowerCase());
+    return {
+      id: newId(),
+      name,
+      bonus: false,
+      trades: false,
+      drafting: !sheet.scored,
+      seats: sheet.seats.map((seat) => ({
+        id: newId(),
+        name: seat.name,
+        picks: seat.picks,
+        ...(seat.scores && seat.scores.length ? { scores: seat.scores } : {}),
+        ...(seat.total ? { total: seat.total } : {}),
+        ...(seat.prize ? { prize: seat.prize } : {}),
+        ...(seat.place != null ? { place: seat.place } : {}),
+      })),
+    };
+  });
 }
 
 function Gate({ onPick, onCancel }: { onPick: (id: string) => void; onCancel?: () => void }) {
@@ -451,6 +495,7 @@ function LeagueBoard({
   onOpenPlayer: (id: string) => void;
 }) {
   const q = query.trim().toLowerCase();
+  const now = useNow();
   const rows = useMemo(() => {
     return managers.filter((m) => {
       if (!q) return true;
@@ -505,7 +550,9 @@ function LeagueBoard({
                 return (
                   <button key={`${m.id}-${id}-${index}`} type="button" onClick={() => onOpenPlayer(id)} className="text-left">
                     <Face id={id} alt="" />
-                    <span className="mt-1 block text-center text-xs text-muted">
+                    <span
+                      className={`mt-1 block text-center text-xs font-semibold ${isBootPublic(c, now) ? "text-boot" : "text-muted"}`}
+                    >
                       {index + 1} · {c.first}
                     </span>
                   </button>
@@ -620,7 +667,7 @@ function Roster({
                 </div>
                 <div className="min-w-0 py-1">
                   <p className="text-xs font-semibold tracking-widest text-muted">PICK {index + 1}</p>
-                  <p className="font-display text-4xl leading-none">{c.first}</p>
+                  <p className={`font-display text-4xl leading-none ${isBootPublic(c, now) ? "text-boot" : ""}`}>{c.first}</p>
                   <p className="mt-1 text-sm text-fg">{c.job}</p>
                   <TribePill tribe={c.tribe} />
                   <p className="mt-2 text-sm text-muted">
@@ -645,7 +692,17 @@ function Roster({
                     <span className="rounded-lg px-2 py-1 font-semibold" style={{ background: m.bg, color: m.fg }}>
                       {m.name}
                     </span>
-                    <span className="text-muted">{names.join(", ")}</span>
+                    <span className="text-right text-sm">
+                      {names.map((name, index) => {
+                        const player = contestantByName(name);
+                        const knockedOut = player ? isBootPublic(player, now) : false;
+                        return (
+                          <span key={name} className={knockedOut ? "font-semibold text-boot" : "text-muted"}>
+                            {index > 0 ? `, ${name}` : name}
+                          </span>
+                        );
+                      })}
+                    </span>
                   </button>
                 </li>
               );
@@ -748,7 +805,7 @@ function PlayerBody({
         </div>
         <div className="min-w-0">
           <TribePill tribe={c.tribe} />
-          <h2 id={titleId} className="mt-2 font-display text-5xl leading-none">
+          <h2 id={titleId} className={`mt-2 font-display text-5xl leading-none ${out ? "text-boot" : ""}`}>
             {c.first}
           </h2>
           <p className="mt-1 text-sm text-muted">{displayName(c)}</p>
@@ -812,7 +869,8 @@ function ManagerBody({
 
 function Face({ id, alt }: { id: string; alt: string }) {
   const now = useNow();
-  const out = isBootPublic(contestantById(id), now);
+  const c = contestantById(id);
+  const out = isBootPublic(c, now);
   return (
     <span className="relative block">
       <img
@@ -826,11 +884,12 @@ function Face({ id, alt }: { id: string; alt: string }) {
         className="block h-auto w-full bg-surface-2"
       />
       {out && (
-        <span className="pointer-events-none absolute inset-0 bg-boot/70" aria-hidden>
-          <span className="absolute inset-x-0 bottom-1.5 text-center font-display text-2xl leading-none tracking-widest text-boot-ink">
-            OUT
+        <>
+          <span className="pointer-events-none absolute inset-0 bg-boot/55" aria-hidden />
+          <span className="pointer-events-none absolute inset-x-0 bottom-0 bg-bg/90 px-1 py-1 text-center text-xs font-semibold leading-tight text-boot" aria-hidden>
+            {c.first}
           </span>
-        </span>
+        </>
       )}
     </span>
   );

@@ -4,6 +4,10 @@ export type CustomSeat = {
   id: string;
   name: string;
   picks: string[];
+  scores?: number[];
+  total?: string;
+  prize?: string;
+  place?: number;
 };
 
 export type CustomLeague = {
@@ -35,10 +39,22 @@ export function loadCustomLeagues(): CustomLeague[] {
     return parsed
       .filter((league) => league && typeof league.name === "string" && Array.isArray(league.seats))
       .map((league) => ({
-        ...league,
+        id: typeof league.id === "string" ? league.id : newId(),
+        name: league.name,
         bonus: league.bonus === true,
         trades: league.trades === true,
         drafting: league.drafting !== false,
+        seats: league.seats.map((seat, index) => ({
+          id: typeof seat?.id === "string" ? seat.id : `${league.name}-${index}`,
+          name: typeof seat?.name === "string" ? seat.name : "Seat",
+          picks: Array.isArray(seat?.picks) ? seat.picks.filter((pick): pick is string => typeof pick === "string" && pick.trim() !== "") : [],
+          ...(Array.isArray(seat?.scores) && seat.scores.some((score) => typeof score === "number")
+            ? { scores: seat.scores.filter((score): score is number => typeof score === "number") }
+            : {}),
+          ...(typeof seat?.total === "string" ? { total: seat.total } : {}),
+          ...(typeof seat?.prize === "string" ? { prize: seat.prize } : {}),
+          ...(typeof seat?.place === "number" ? { place: seat.place } : {}),
+        })),
       }));
   } catch {
     return [];

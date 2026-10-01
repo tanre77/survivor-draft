@@ -53,12 +53,9 @@ struct BoardView: View {
                         .accessibilityHidden(true)
                     VStack(alignment: .leading) {
                         Text(manager.name)
-                        Text(manager.picks.compactMap { id in
-                            BoardData.contestants.first { $0.id == id }.map(Scoring.displayName)
-                        }.joined(separator: " · "))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                        picksLine(manager)
+                            .font(.caption)
+                            .lineLimit(1)
                     }
                 }
             }
@@ -75,6 +72,18 @@ struct BoardView: View {
             }
         }
     }
+
+    private func picksLine(_ manager: Manager) -> Text {
+        manager.picks.enumerated().reduce(Text("")) { line, item in
+            let (index, id) = item
+            let contestant = BoardData.contestants.first { $0.id == id }
+            let name = contestant.map(Scoring.displayName) ?? id
+            let knockedOut = contestant.map { Scoring.isBootPublic($0) } ?? false
+            let piece = Text(name).foregroundStyle(knockedOut ? Color.boot : Color.secondary)
+            if index == 0 { return piece }
+            return line + Text(" · ").foregroundStyle(.secondary) + piece
+        }
+    }
 }
 
 struct TeamView: View {
@@ -85,10 +94,11 @@ struct TeamView: View {
             if let contestant = BoardData.contestants.first(where: { $0.id == id }) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(Scoring.displayName(contestant))
+                        .foregroundStyle(Scoring.isBootPublic(contestant) ? Color.boot : Color.primary)
                     if Scoring.isBootPublic(contestant) {
                         Text(contestant.boot ?? "Voted out")
                             .font(.caption.weight(.semibold))
-                            .foregroundStyle(Color(red: 0.88, green: 0.02, blue: 0))
+                            .foregroundStyle(Color.boot)
                     } else {
                         Text(contestant.tribe == "savu" ? "Savu" : "Toka")
                             .font(.caption)
@@ -121,6 +131,8 @@ struct PolicyView: View {
 }
 
 extension Color {
+    static let boot = Color(red: 0.88, green: 0.02, blue: 0)
+
     init(hex: String) {
         let cleaned = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
         var value: UInt64 = 0

@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { pastSeasons } from "@/data/history";
 import { eraseCustomLeagues, newId, seatColors, type CustomLeague, type CustomSeat } from "@/data/custom-leagues";
-import { SEAT_KEY, bonusOf, contestantByName, idolCount, winCount } from "@/data/league";
+import { SEAT_KEY, bonusOf, contestantByName, idolCount, isBootPublic, winCount } from "@/data/league";
+import { totalRank } from "@/data/stats";
 
 export function LeagueHome({
   leagues,
@@ -9,12 +10,14 @@ export function LeagueHome({
   onOpenCustom,
   onCreate,
   onOpenPast,
+  onImport,
 }: {
   leagues: CustomLeague[];
   onOpenLive: () => void;
   onOpenCustom: (id: string) => void;
   onCreate: () => void;
   onOpenPast: (id: string) => void;
+  onImport: () => void;
 }) {
   const [legal, setLegal] = useState(false);
   const [erasing, setErasing] = useState(false);
@@ -30,8 +33,16 @@ export function LeagueHome({
       <p className="text-xs font-semibold tracking-widest text-muted">DRAFTS</p>
       <h1 className="mt-1 font-display text-5xl leading-none">Leagues</h1>
       <p className="mt-2 max-w-prose text-sm text-muted">
-        Survivor 51 is the one in progress. Finished seasons stay on the sheet. Start another league when this isn’t the table.
+        Survivor 51 is the one in progress. Finished seasons stay on the sheet.
       </p>
+      <div className="mt-5 flex gap-2">
+        <button type="button" onClick={onCreate} className="min-h-12 flex-1 rounded-2xl bg-ember text-base font-semibold text-ember-ink">
+          New league
+        </button>
+        <button type="button" onClick={onImport} className="min-h-12 flex-1 rounded-2xl bg-surface text-sm font-semibold">
+          Import
+        </button>
+      </div>
 
       <h2 className="mt-6 text-xs font-semibold tracking-widest text-toka">IN PROGRESS</h2>
       <ul className="mt-2 flex flex-col gap-2">
@@ -45,19 +56,19 @@ export function LeagueHome({
         {leagues.map((league) => (
           <li key={league.id}>
             <button type="button" onClick={() => onOpenCustom(league.id)} className="w-full rounded-2xl bg-surface px-4 py-4 text-left">
-              <span className="text-xs font-semibold tracking-widest text-toka">IN PROGRESS</span>
+              <span className="text-xs font-semibold tracking-widest text-toka">
+                {league.seats.some((seat) => seat.scores != null && seat.scores.length > 0) ? "SCORED" : "IN PROGRESS"}
+              </span>
               <span className="mt-1 block font-display text-4xl leading-none">{league.name}</span>
               <span className="mt-1 block text-sm text-muted">
                 {league.seats.length} {league.seats.length === 1 ? "person" : "people"}
                 {league.trades ? " · trades" : ""}
+                {league.bonus ? " · bonus" : ""}
               </span>
             </button>
           </li>
         ))}
       </ul>
-      <button type="button" onClick={onCreate} className="mt-3 min-h-12 w-full rounded-2xl bg-ember text-base font-semibold text-ember-ink">
-        New league
-      </button>
 
       <h2 className="mt-8 text-xs font-semibold tracking-widest text-muted">FINISHED</h2>
       <ul className="mt-2 flex flex-col gap-2">
@@ -281,21 +292,33 @@ export function CustomBoard({
     setDraft("");
   }
 
+  const ranked = [...league.seats].sort((a, b) => {
+    if (a.place != null && b.place != null) return a.place - b.place;
+    return totalRank(a.total) - totalRank(b.total);
+  });
+  const scored = league.seats.some((seat) => seat.scores != null && seat.scores.length > 0);
+
   return (
     <div>
-      <p className="text-xs font-semibold tracking-widest text-toka">IN PROGRESS</p>
+      <p className="text-xs font-semibold tracking-widest text-toka">{scored ? "FROM THE SHEET" : "IN PROGRESS"}</p>
       <h1 className="mt-1 font-display text-5xl leading-none">{league.name}</h1>
       <p className="mt-2 text-sm text-muted">
-        Tap a name to open that team.{" "}
-        {league.drafting
-          ? league.trades
-            ? "Trades are on until the draft closes."
-            : "Trades are off."
-          : "The draft is closed."}{" "}
-        {league.bonus ? "Bonus points are on." : "Bonus points are off."}
+        {scored ? (
+          "Imported with the sheet’s scores. Lowest total wins."
+        ) : (
+          <>
+            Tap a name to open that team.{" "}
+            {league.drafting
+              ? league.trades
+                ? "Trades are on until the draft closes."
+                : "Trades are off."
+              : "The draft is closed."}{" "}
+            {league.bonus ? "Bonus points are on." : "Bonus points are off."}
+          </>
+        )}
       </p>
       <ul className="mt-4 flex flex-col gap-2">
-        {league.seats.map((seat, index) => {
+        {(scored ? ranked : league.seats).map((seat, index) => {
           const color = seatColors(seat.name, index);
           return (
             <li key={seat.id}>
@@ -304,10 +327,26 @@ export function CustomBoard({
                 onClick={() => onOpenSeat(seat.id)}
                 className="flex w-full items-center justify-between gap-3 rounded-2xl bg-surface px-3 py-3 text-left"
               >
-                <span className="rounded-lg px-3 py-1.5 text-sm font-semibold" style={{ background: color.bg, color: color.fg }}>
-                  {seat.name}
+                <span>
+                  <span className="rounded-lg px-3 py-1.5 text-sm font-semibold" style={{ background: color.bg, color: color.fg }}>
+                    {seat.name}
+                  </span>
+                  {scored && seat.picks.length > 0 && (
+                    <span className="mt-1 block text-sm text-muted">{seat.picks.join(" · ")}</span>
+                  )}
                 </span>
-                <span className="text-sm text-muted">{seat.picks.length === 0 ? "No picks" : `${seat.picks.length} picks`}</span>
+                <span className="text-right text-sm text-muted">
+                  {scored && seat.total ? (
+                    <>
+                      <span className="block font-display text-3xl leading-none text-fg tabular-nums">{seat.total}</span>
+                      {seat.prize ?? (seat.place ? `#${seat.place}` : "")}
+                    </>
+                  ) : seat.picks.length === 0 ? (
+                    "No picks"
+                  ) : (
+                    `${seat.picks.length} picks`
+                  )}
+                </span>
               </button>
             </li>
           );
@@ -405,10 +444,11 @@ export function CustomTeam({
       {seat.picks.length === 0 && <p className="mt-4 text-sm text-muted">No picks yet.</p>}
       <ol className="mt-4 flex flex-col gap-2">
         {seat.picks.map((pick, pickIndex) => {
-          const player = bonus ? contestantByName(pick) : null;
-          const points = player ? bonusOf(player) : 0;
-          const idols = player ? idolCount(player) : 0;
-          const wins = player ? winCount(player) : 0;
+          const player = contestantByName(pick);
+          const out = Boolean(player && isBootPublic(player));
+          const points = bonus && player ? bonusOf(player) : 0;
+          const idols = bonus && player ? idolCount(player) : 0;
+          const wins = bonus && player ? winCount(player) : 0;
           const detail = [
             wins ? `${wins} ${wins === 1 ? "challenge" : "challenges"}` : "",
             idols ? `${idols} ${idols === 1 ? "idol" : "idols"}` : "",
@@ -419,24 +459,27 @@ export function CustomTeam({
             <li key={`${pick}-${pickIndex}`} className="flex items-center justify-between gap-3 rounded-2xl bg-surface px-4 py-3">
               <span>
                 <span className="block text-xs font-semibold tracking-widest text-muted">PICK {pickIndex + 1}</span>
-                <span className="text-base font-semibold">{pick}</span>
+                <span className={`text-base font-semibold ${out ? "text-boot" : ""}`}>{pick}</span>
                 {bonus && player && points > 0 && (
                   <span className="mt-1 block text-sm text-toka">
                     {detail} · −{points}
                   </span>
                 )}
               </span>
-              {drafting && (
-                <span className="flex shrink-0 gap-3">
-                  {canTrade && (
-                    <button
-                      type="button"
-                      onClick={() => setDeal({ mine: pickIndex, otherId: null })}
-                      className="text-sm font-semibold text-toka"
-                    >
-                      Trade
-                    </button>
-                  )}
+              <span className="flex shrink-0 items-center gap-3">
+                {seat.scores?.[pickIndex] != null && (
+                  <span className="font-display text-4xl leading-none tabular-nums text-toka">{seat.scores[pickIndex]}</span>
+                )}
+                {drafting && canTrade && (
+                  <button
+                    type="button"
+                    onClick={() => setDeal({ mine: pickIndex, otherId: null })}
+                    className="text-sm font-semibold text-toka"
+                  >
+                    Trade
+                  </button>
+                )}
+                {drafting && (
                   <button
                     type="button"
                     onClick={() => onChange(seat.picks.filter((_, i) => i !== pickIndex))}
@@ -444,8 +487,8 @@ export function CustomTeam({
                   >
                     Remove
                   </button>
-                </span>
-              )}
+                )}
+              </span>
             </li>
           );
         })}
