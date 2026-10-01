@@ -1,0 +1,72 @@
+@import "tailwindcss";
+@import "@fontsource/bebas-neue/latin-400.css";
+@import "@fontsource/outfit/latin-400.css";
+@import "@fontsource/outfit/latin-500.css";
+@import "@fontsource/outfit/latin-600.css";
+@import "@fontsource/outfit/latin-700.css";
+
+@theme {
+  --color-bg: #100e0c;
+  --color-surface: #1b1714;
+  --color-surface-2: #26211c;
+  --color-fg: #f4efe6;
+  --color-muted: #a89886;
+  --color-line: #3c342c;
+  --color-savu: #6e4aa8;
+  --color-savu-ink: #f6efff;
+  --color-toka: #e2b340;
+  --color-toka-ink: #2a2108;
+  --color-ember: #e25b2a;
+  --color-ember-ink: #fff6f1;
+  --color-boot: #e10600;
+  --color-boot-ink: #fff5f5;
+  --font-sans: "Outfit", system-ui, sans-serif;
+  --font-display: "Bebas Neue", "Arial Narrow", sans-serif;
+}
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  body {
+    background: var(--color-bg);
+    color: var(--color-fg);
+    font-family: var(--font-sans);
+    text-wrap: pretty;
+  }
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-ember);
+    outline-offset: 2px;
+  }
+  ::selection {
+    background: var(--color-savu);
+    color: var(--color-savu-ink);
+  }
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+}
+
+.safe-top {
+  padding-top: env(safe-area-inset-top);
+}
+.dock {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.sheet-panel {
+  max-height: min(88dvh, 760px);
+  padding-bottom: calc(env(safe-area-inset-bottom) + 1.5rem);
+}
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
