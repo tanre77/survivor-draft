@@ -3,7 +3,7 @@ import { BarChart3, ChevronLeft, ChevronRight, LayoutGrid, ScrollText, Search, T
 import { HistoryBoard, PastTeam, RulesBoard, SeasonPage } from "@/components/archive";
 import { ImportLeague } from "@/components/import-league";
 import { reportError, startDiagnostics } from "@/lib/diagnostics";
-import { CreateLeague, CustomBoard, CustomTeam, LeagueHome } from "@/components/league-home";
+import { CreateLeague, CustomBoard, CustomTeam, FinishedSeasons, LeagueHome } from "@/components/league-home";
 import { StatsBoard } from "@/components/stats-board";
 import { loadCustomLeagues, newId, saveCustomLeagues, type CustomLeague } from "@/data/custom-leagues";
 import type { ImportedSheet } from "@/data/import-sheet";
@@ -58,6 +58,7 @@ export function DraftLeague() {
   const [place, setPlace] = useState<Place>({ view: "home" });
   const [leagues, setLeagues] = useState<CustomLeague[]>([]);
   const [tab, setTab] = useState<Tab>("league");
+  const [homeTab, setHomeTab] = useState<"leagues" | "stats" | "past">("leagues");
   const [teamId, setTeamId] = useState<string | null>(null);
   const [pastTeam, setPastTeam] = useState<{ seasonId: string; name: string } | null>(null);
   const [customSeat, setCustomSeat] = useState<string | null>(null);
@@ -166,7 +167,6 @@ export function DraftLeague() {
   const liveSeat = place.view === "s51" ? seat : null;
   const bare = place.view === "home" || place.view === "make" || place.view === "import";
   const showSearch = liveSeat && !teamId && (tab === "league" || tab === "cards");
-  const showNav = Boolean(liveSeat);
   const panel = stack[stack.length - 1] ?? null;
   const backLabel =
     place.view === "s51" && teamId
@@ -181,9 +181,9 @@ export function DraftLeague() {
 
   return (
     <ClockContext.Provider value={now}>
-    <div className="min-h-dvh bg-bg text-fg">
+    <div className="flex h-dvh flex-col overflow-hidden bg-bg text-fg">
       {place.view !== "home" && place.view !== "make" && place.view !== "import" && (
-        <header className="safe-top sticky top-0 z-20 border-b border-line bg-bg/95 backdrop-blur">
+        <header className="safe-top z-20 shrink-0 border-b border-line bg-bg/95">
           <div className="mx-auto flex max-w-5xl items-end justify-between gap-3 px-4 pt-3 pb-3">
             <div>
               <button type="button" onClick={goBack} className="inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-muted">
@@ -245,8 +245,8 @@ export function DraftLeague() {
         </header>
       )}
 
-      <main className={`mx-auto max-w-5xl px-4 pt-4 ${bare ? "safe-top" : ""} ${showNav ? "pb-28" : "pb-10"}`}>
-        {place.view === "home" && (
+      <main className={`mx-auto min-h-0 w-full max-w-5xl flex-1 overflow-y-auto px-4 pt-4 pb-8 ${bare ? "safe-top" : ""}`}>
+        {place.view === "home" && homeTab === "leagues" && (
           <LeagueHome
             leagues={leagues}
             onOpenLive={() => {
@@ -261,11 +261,16 @@ export function DraftLeague() {
               setPlace({ view: "custom", id });
             }}
             onCreate={() => setPlace({ view: "make" })}
-            onOpenPast={(id) => {
+            onImport={() => setPlace({ view: "import" })}
+          />
+        )}
+        {place.view === "home" && homeTab === "stats" && <StatsBoard seatName={seat?.name} />}
+        {place.view === "home" && homeTab === "past" && (
+          <FinishedSeasons
+            onOpen={(id) => {
               setPastTeam(null);
               setPlace({ view: "past", id });
             }}
-            onImport={() => setPlace({ view: "import" })}
           />
         )}
         {place.view === "make" && (
@@ -365,8 +370,18 @@ export function DraftLeague() {
         {liveSeat && !teamId && tab === "stats" && <StatsBoard seatName={liveSeat.name} />}
       </main>
 
+      {place.view === "home" && (
+        <nav className="dock shrink-0 border-t border-line bg-bg">
+          <div className="mx-auto grid max-w-5xl grid-cols-3">
+            <TabButton icon={<Users className="size-5" />} label="Leagues" active={homeTab === "leagues"} onClick={() => setHomeTab("leagues")} />
+            <TabButton icon={<BarChart3 className="size-5" />} label="Stats" active={homeTab === "stats"} onClick={() => setHomeTab("stats")} />
+            <TabButton icon={<Trophy className="size-5" />} label="Past" active={homeTab === "past"} onClick={() => setHomeTab("past")} />
+          </div>
+        </nav>
+      )}
+
       {liveSeat && (
-        <nav className="dock fixed inset-x-0 bottom-0 z-30 border-t border-line bg-bg/95 backdrop-blur">
+        <nav className="dock shrink-0 border-t border-line bg-bg">
           <div className="mx-auto grid max-w-5xl grid-cols-6">
             <TabButton icon={<Users className="size-5" />} label="League" active={tab === "league" && teamId !== liveSeat.id} onClick={() => selectTab("league")} />
             <TabButton icon={<LayoutGrid className="size-5" />} label="Cards" active={tab === "cards" && !teamId} onClick={() => selectTab("cards")} />

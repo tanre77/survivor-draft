@@ -9,14 +9,12 @@ export function LeagueHome({
   onOpenLive,
   onOpenCustom,
   onCreate,
-  onOpenPast,
   onImport,
 }: {
   leagues: CustomLeague[];
   onOpenLive: () => void;
   onOpenCustom: (id: string) => void;
   onCreate: () => void;
-  onOpenPast: (id: string) => void;
   onImport: () => void;
 }) {
   const [legal, setLegal] = useState(false);
@@ -70,25 +68,6 @@ export function LeagueHome({
         ))}
       </ul>
 
-      <h2 className="mt-8 text-xs font-semibold tracking-widest text-muted">FINISHED</h2>
-      <ul className="mt-2 flex flex-col gap-2">
-        {pastSeasons.map((season) => {
-          const winner = season.standings[0];
-          return (
-            <li key={season.id}>
-              <button type="button" onClick={() => onOpenPast(season.id)} className="w-full rounded-2xl bg-surface px-4 py-3 text-left">
-                <span className="block text-xs font-semibold tracking-widest text-muted">FINISHED</span>
-                <span className="block font-display text-3xl leading-none">Season {season.season}</span>
-                <span className="mt-1 block text-sm text-muted">
-                  {winner.name} won · {winner.total}
-                  {winner.prize ? ` · ${winner.prize}` : ""}
-                </span>
-              </button>
-            </li>
-          );
-        })}
-      </ul>
-
       <div className="mt-8 rounded-2xl bg-surface px-4 py-4">
         <button type="button" onClick={() => setLegal((open) => !open)} className="text-sm font-semibold">
           {legal ? "Hide privacy" : "Privacy and support"}
@@ -115,6 +94,32 @@ export function LeagueHome({
           </button>
         )}
       </div>
+    </div>
+  );
+}
+
+export function FinishedSeasons({ onOpen }: { onOpen: (id: string) => void }) {
+  return (
+    <div>
+      <p className="text-xs font-semibold tracking-widest text-muted">ON THE SHEET</p>
+      <h1 className="mt-1 font-display text-5xl leading-none">Past seasons</h1>
+      <ul className="mt-4 flex flex-col gap-2">
+        {pastSeasons.map((season) => {
+          const winner = season.standings[0];
+          return (
+            <li key={season.id}>
+              <button type="button" onClick={() => onOpen(season.id)} className="w-full rounded-2xl bg-surface px-4 py-3 text-left">
+                <span className="block text-xs font-semibold tracking-widest text-muted">FINISHED</span>
+                <span className="block font-display text-3xl leading-none">Season {season.season}</span>
+                <span className="mt-1 block text-sm text-muted">
+                  {winner.name} won · {winner.total}
+                  {winner.prize ? ` · ${winner.prize}` : ""}
+                </span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }
