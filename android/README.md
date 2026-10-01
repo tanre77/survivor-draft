@@ -1,4 +1,4 @@
-# Survivor Draft (React Native, Android)
+# Survivor Fantasy Draft (React Native, Android)
 
 React Native UI over the same `shared/board.json` the SwiftUI app uses.
 

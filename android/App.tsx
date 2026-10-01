@@ -21,7 +21,7 @@ export default function App() {
       <SafeAreaView style={styles.screen}>
         <Text style={styles.title}>Privacy</Text>
         <Text style={styles.copy}>
-          Survivor 51 Draft is a private family scoreboard. It does not take payment, create an account, or upload
+          Survivor Fantasy Draft is a private family scoreboard. It does not take payment, create an account, or upload
           your seat. It does not ask for location, contacts, camera, or microphone. Crashlytics stays off until a
           Firebase config file is added.
         </Text>

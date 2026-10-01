@@ -1,12 +1,16 @@
 import { createContext, useContext, useEffect, useId, useMemo, useState, type ReactNode } from "react";
-import { BarChart3, ChevronLeft, ChevronRight, LayoutGrid, ScrollText, Search, Trophy, UserRound, Users, X } from "lucide-react";
+import { BarChart3, ChevronLeft, ChevronRight, Gem, LayoutGrid, ScrollText, Search, Trophy, UserRound, Users, X } from "lucide-react";
 import { HistoryBoard, PastTeam, RulesBoard, SeasonPage } from "@/components/archive";
 import { ImportLeague } from "@/components/import-league";
 import { reportError, startDiagnostics } from "@/lib/diagnostics";
 import { CreateLeague, CustomBoard, CustomTeam, FinishedSeasons, LeagueHome } from "@/components/league-home";
+import { ProfileBoard } from "@/components/profile-board";
+import { SupportBoard } from "@/components/support-board";
 import { StatsBoard } from "@/components/stats-board";
-import { loadCustomLeagues, newId, saveCustomLeagues, type CustomLeague } from "@/data/custom-leagues";
+import { lastDrafter, loadCustomLeagues, newId, nextDrafter, rosterKey, saveCustomLeagues, shuffleSeats, takenBy, type CustomLeague } from "@/data/custom-leagues";
 import type { ImportedSheet } from "@/data/import-sheet";
+import { loadProfile, saveProfile } from "@/data/profile";
+import { deleteSharedLeague, fetchSharedLeague, normalizeCode, publishSharedLeague, saveSharedLeague, type SharedLeague } from "@/lib/shared-leagues";
 import {
   SEAT_KEY,
   contestantBlob,
@@ -14,13 +18,18 @@ import {
   contestantByName,
   contestants,
   displayName,
+  idolCount,
   isBootPublic,
   managerById,
   managers,
   nameList,
+  ordinal,
   ownersOf,
   photoSrc,
   pickIndex,
+  pickPoints,
+  standingPlace,
+  winCount,
   type Contestant,
   type Manager,
 } from "@/data/league";
@@ -58,7 +67,8 @@ export function DraftLeague() {
   const [place, setPlace] = useState<Place>({ view: "home" });
   const [leagues, setLeagues] = useState<CustomLeague[]>([]);
   const [tab, setTab] = useState<Tab>("league");
-  const [homeTab, setHomeTab] = useState<"leagues" | "stats" | "past">("leagues");
+  const [homeTab, setHomeTab] = useState<"leagues" | "stats" | "past" | "you">("leagues");
+  const [profileName, setProfileName] = useState("");
   const [teamId, setTeamId] = useState<string | null>(null);
   const [pastTeam, setPastTeam] = useState<{ seasonId: string; name: string } | null>(null);
   const [customSeat, setCustomSeat] = useState<string | null>(null);
@@ -71,6 +81,7 @@ export function DraftLeague() {
     const saved = localStorage.getItem(SEAT_KEY);
     if (saved && managerById(saved)) setSeatId(saved);
     setLeagues(loadCustomLeagues());
+    setProfileName(loadProfile().name);
     setReady(true);
     startDiagnostics();
   }, []);
@@ -86,6 +97,23 @@ export function DraftLeague() {
   useEffect(() => {
     if (ready) saveCustomLeagues(leagues);
   }, [leagues, ready]);
+
+  useEffect(() => {
+    if (place.view !== "custom") return;
+    const league = leagues.find((item) => item.id === place.id);
+    if (!league?.code) return;
+    let cancel = false;
+    fetchSharedLeague({ data: league.code })
+      .then((shared) => {
+        if (!cancel && shared) storeShared(shared);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancel = true;
+    };
+    // Refresh when the league is opened, not on every local edit.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [place]);
 
   useEffect(() => {
     const next = contestants
@@ -150,6 +178,37 @@ export function DraftLeague() {
 
   function updateLeague(next: CustomLeague) {
     setLeagues((list) => list.map((league) => (league.id === next.id ? next : league)));
+    if (!next.code) return;
+    void saveSharedLeague({
+      data: {
+        code: next.code,
+        name: next.name,
+        bonus: next.bonus,
+        trades: next.trades,
+        drafting: next.drafting,
+        advanced: next.advanced,
+        headToHead: next.headToHead,
+        seats: next.seats,
+      },
+    }).catch(() => undefined);
+  }
+
+  function storeShared(shared: SharedLeague) {
+    const existing = leagues.find((item) => item.code === shared.code || item.id === shared.code);
+    const id = existing?.id ?? shared.code;
+    const next: CustomLeague = {
+      id,
+      name: shared.name,
+      bonus: shared.bonus,
+      trades: shared.trades,
+      drafting: shared.drafting,
+      advanced: shared.advanced,
+      headToHead: shared.headToHead,
+      seats: shared.seats,
+      code: shared.code,
+    };
+    setLeagues((list) => (existing ? list.map((item) => (item.id === id ? next : item)) : [next, ...list]));
+    return id;
   }
 
   if (choosing) {
@@ -262,7 +321,39 @@ export function DraftLeague() {
             }}
             onCreate={() => setPlace({ view: "make" })}
             onImport={() => setPlace({ view: "import" })}
+            profileName={profileName}
+            onSaveName={(name) => {
+              saveProfile({ name });
+              setProfileName(name.trim());
+            }}
+            onJoin={async (raw) => {
+              const code = normalizeCode(raw);
+              const shared = await fetchSharedLeague({ data: code });
+              if (!shared) throw new Error("No league uses that code.");
+              const name = loadProfile().name.trim();
+              let seats = shared.seats;
+              if (name && !seats.some((seat) => seat.name.toLowerCase() === name.toLowerCase())) {
+                seats = [...seats, { id: newId(), name, picks: [] }];
+                const saved = await saveSharedLeague({ data: { ...shared, seats } });
+                seats = saved.seats;
+              }
+              const id = storeShared({ ...shared, seats });
+              setCustomSeat(null);
+              setPlace({ view: "custom", id });
+            }}
           />
+        )}
+        {place.view === "home" && homeTab === "you" && (
+          <>
+            <ProfileBoard
+              leagues={leagues}
+              onName={(name) => {
+                saveProfile({ name });
+                setProfileName(name);
+              }}
+            />
+            <SupportBoard you={profileName} />
+          </>
         )}
         {place.view === "home" && homeTab === "stats" && <StatsBoard seatName={seat?.name} />}
         {place.view === "home" && homeTab === "past" && (
@@ -275,11 +366,31 @@ export function DraftLeague() {
         )}
         {place.view === "make" && (
           <CreateLeague
+            you={profileName}
             onCancel={() => setPlace({ view: "home" })}
             onCreate={(league) => {
-              setLeagues((list) => [league, ...list]);
-              setCustomSeat(null);
-              setPlace({ view: "custom", id: league.id });
+              void publishSharedLeague({
+                data: {
+                  name: league.name,
+                  bonus: league.bonus,
+                  trades: league.trades,
+                  drafting: league.drafting,
+                  advanced: league.advanced,
+                  headToHead: league.headToHead,
+                  seats: league.seats,
+                },
+              })
+                .then((shared) => {
+                  const next = { ...league, code: shared.code, seats: shared.seats };
+                  setLeagues((list) => [next, ...list]);
+                  setCustomSeat(null);
+                  setPlace({ view: "custom", id: next.id });
+                })
+                .catch(() => {
+                  setLeagues((list) => [league, ...list]);
+                  setCustomSeat(null);
+                  setPlace({ view: "custom", id: league.id });
+                });
             }}
           />
         )}
@@ -302,9 +413,30 @@ export function DraftLeague() {
             }
             onCloseDraft={() => updateLeague({ ...custom, drafting: false })}
             onDelete={() => {
+              if (custom.code) void deleteSharedLeague({ data: custom.code }).catch(() => undefined);
               setLeagues((list) => list.filter((league) => league.id !== custom.id));
               setPlace({ view: "home" });
             }}
+            onInvite={() => {
+              void publishSharedLeague({
+                data: {
+                  name: custom.name,
+                  bonus: custom.bonus,
+                  trades: custom.trades,
+                  drafting: custom.drafting,
+                  advanced: custom.advanced,
+                  headToHead: custom.headToHead,
+                  seats: custom.seats,
+                },
+              })
+                .then((shared) => updateLeague({ ...custom, code: shared.code, seats: shared.seats }))
+                .catch(() => undefined);
+            }}
+            onShuffle={() => {
+              if (custom.seats.some((seat) => seat.picks.length > 0)) return;
+              updateLeague({ ...custom, seats: shuffleSeats(custom.seats) });
+            }}
+            you={profileName}
           />
         )}
         {customPerson && (
@@ -316,6 +448,11 @@ export function DraftLeague() {
             trades={custom?.trades === true}
             onChange={(picks) => {
               if (!custom || !custom.drafting) return;
+              const adding = picks.length > customPerson.picks.length;
+              const removing = picks.length < customPerson.picks.length;
+              if (adding && nextDrafter(custom.seats)?.id !== customPerson.id) return;
+              if (removing && lastDrafter(custom.seats)?.id !== customPerson.id) return;
+              if (takenBy(custom.seats, picks, [customPerson.id])) return;
               updateLeague({
                 ...custom,
                 seats: custom.seats.map((s) => (s.id === customPerson.id ? { ...s, picks } : s)),
@@ -333,6 +470,9 @@ export function DraftLeague() {
               if (offered == null || wanted == null) return;
               minePicks[myIndex] = wanted;
               otherPicks[theirIndex] = offered;
+              if (takenBy(custom.seats, minePicks, [mine.id, other.id])) return;
+              if (takenBy(custom.seats, otherPicks, [mine.id, other.id])) return;
+              if (rosterKey(minePicks) && rosterKey(minePicks) === rosterKey(otherPicks)) return;
               updateLeague({
                 ...custom,
                 seats: custom.seats.map((s) => {
@@ -367,15 +507,23 @@ export function DraftLeague() {
         )}
         {liveSeat && !teamId && tab === "past" && pastTeam && <PastTeam seasonId={pastTeam.seasonId} name={pastTeam.name} />}
         {liveSeat && !teamId && tab === "rules" && <RulesBoard />}
-        {liveSeat && !teamId && tab === "stats" && <StatsBoard seatName={liveSeat.name} />}
+        {liveSeat && !teamId && tab === "stats" && (
+          <>
+            <GameStats onOpenPlayer={(id) => setStack([{ kind: "player", id }])} />
+            <div className="mt-8">
+              <StatsBoard seatName={liveSeat.name} />
+            </div>
+          </>
+        )}
       </main>
 
       {place.view === "home" && (
         <nav className="dock shrink-0 border-t border-line bg-bg">
-          <div className="mx-auto grid max-w-5xl grid-cols-3">
+          <div className="mx-auto grid max-w-5xl grid-cols-4">
             <TabButton icon={<Users className="size-5" />} label="Leagues" active={homeTab === "leagues"} onClick={() => setHomeTab("leagues")} />
             <TabButton icon={<BarChart3 className="size-5" />} label="Stats" active={homeTab === "stats"} onClick={() => setHomeTab("stats")} />
             <TabButton icon={<Trophy className="size-5" />} label="Past" active={homeTab === "past"} onClick={() => setHomeTab("past")} />
+            <TabButton icon={<UserRound className="size-5" />} label="You" active={homeTab === "you"} onClick={() => setHomeTab("you")} />
           </div>
         </nav>
       )}
@@ -422,6 +570,8 @@ function importedLeagues(existing: CustomLeague[], sheets: ImportedSheet[]): Cus
       bonus: false,
       trades: false,
       drafting: !sheet.scored,
+      advanced: false,
+      headToHead: false,
       seats: sheet.seats.map((seat) => ({
         id: newId(),
         name: seat.name,
@@ -482,12 +632,14 @@ function BootCallout({ onOpenPlayer }: { onOpenPlayer: (id: string) => void }) {
     .sort((a, b) => bootRank(b.boot) - bootRank(a.boot))[0];
   if (!latest) return null;
   const owners = ownersOf(latest.id);
+  const points = pickPoints(latest, now);
   return (
     <div className="mb-4 rounded-2xl bg-boot/15 px-4 py-4">
       <button type="button" onClick={() => onOpenPlayer(latest.id)} className="text-left">
         <p className="font-display text-3xl leading-none text-boot">{latest.first} is out</p>
         <p className="mt-2 text-sm text-fg">
-          {latest.boot}.{" "}
+          {latest.boot}
+          {points != null ? `. That’s ${points} points.` : "."}{" "}
           {owners.length === 0
             ? `Nobody drafted ${latest.first}.`
             : `Drafted by ${nameList(owners.map((m) => m.name))}.`}
@@ -512,16 +664,52 @@ function LeagueBoard({
   const q = query.trim().toLowerCase();
   const now = useNow();
   const rows = useMemo(() => {
-    return managers.filter((m) => {
+    const listed = managers.filter((m) => {
       if (!q) return true;
       const picks = m.picks.map((id) => contestantById(id).first).join(" ");
       return `${m.name} ${picks}`.toLowerCase().includes(q);
     });
-  }, [q]);
+    const scored = listed.map((m) => ({
+      manager: m,
+      total: m.picks.reduce((sum, id) => sum + (pickPoints(contestantById(id), now) ?? 0), 0),
+      pending: m.picks.filter((id) => pickPoints(contestantById(id), now) == null).length,
+    }));
+    const totals = scored.map((row) => row.total);
+    return scored
+      .map((row) => ({ ...row, place: standingPlace(row.total, totals) }))
+      .sort((a, b) => a.place - b.place || a.total - b.total || a.manager.name.localeCompare(b.manager.name));
+  }, [q, now]);
+  const leaders = rows.filter((row) => row.place === 1).length;
 
   return (
     <div>
       {!q && <BootCallout onOpenPlayer={onOpenPlayer} />}
+      {!q && rows.length > 0 && (
+        <section className="mb-4 rounded-2xl bg-surface p-4">
+          <p className="text-xs font-semibold tracking-widest text-toka">STANDINGS</p>
+          <h2 className="mt-1 font-display text-4xl leading-none">Lowest score leads</h2>
+          <p className="mt-1 text-sm text-muted">
+            {leaders} {leaders === 1 ? "person is" : "people are"} tied for 1st. A boot adds that player's points, same as the sheet.
+          </p>
+          <ol className="mt-3 flex flex-col gap-1">
+            {rows.map((row) => (
+              <li key={row.manager.id}>
+                <button
+                  type="button"
+                  onClick={() => onOpenManager(row.manager.id)}
+                  className="flex w-full items-center justify-between gap-3 py-1 text-left"
+                >
+                  <span className="min-w-0">
+                    <span className="text-xs font-semibold tabular-nums text-muted">{ordinal(row.place)}</span>
+                    <span className={`ml-2 font-semibold ${row.manager.id === seat.id ? "text-ember" : ""}`}>{row.manager.name}</span>
+                  </span>
+                  <span className="font-display text-2xl leading-none tabular-nums">{row.total}</span>
+                </button>
+              </li>
+            ))}
+          </ol>
+        </section>
+      )}
       {!q && (
         <div className="mb-3 flex justify-end">
           <button
@@ -541,7 +729,11 @@ function LeagueBoard({
       )}
       {rows.length === 0 && <p className="py-10 text-center text-sm text-muted">No seat matches that.</p>}
       <ul className="flex flex-col gap-2">
-        {rows.map((m) => (
+        {rows.map((row) => {
+        const m = row.manager;
+        const total = row.total;
+        const pending = row.pending;
+        return (
           <li
             key={m.id}
             id={`seat-${m.id}`}
@@ -557,25 +749,33 @@ function LeagueBoard({
                 {m.name}
                 <ChevronRight className="size-4" />
               </button>
-              {m.id === seat.id && <span className="text-xs font-semibold tracking-widest text-ember">YOU</span>}
+              <span className="text-right">
+                {m.id === seat.id && <span className="mb-1 block text-xs font-semibold tracking-widest text-ember">YOU</span>}
+                <span className="block text-xs font-semibold tabular-nums text-muted">{ordinal(row.place)}</span>
+                <span className="block font-display text-3xl leading-none tabular-nums">{total}</span>
+                <span className="block text-xs text-muted">{pending === 0 ? "Final" : `${pending} still in`}</span>
+              </span>
             </div>
             <div className="mt-3 grid grid-cols-3 gap-2">
               {m.picks.map((id, index) => {
                 const c = contestantById(id);
+                const points = pickPoints(c, now);
                 return (
                   <button key={`${m.id}-${id}-${index}`} type="button" onClick={() => onOpenPlayer(id)} className="text-left">
                     <Face id={id} alt="" />
                     <span
-                      className={`mt-1 block text-center text-xs font-semibold ${isBootPublic(c, now) ? "text-boot" : "text-muted"}`}
+                      className={`mt-1 block text-center text-xs font-semibold ${points != null ? "text-boot" : "text-muted"}`}
                     >
                       {index + 1} · {c.first}
+                      {points != null ? ` · ${points}` : ""}
                     </span>
                   </button>
                 );
               })}
             </div>
           </li>
-        ))}
+        );
+      })}
       </ul>
     </div>
   );
@@ -669,26 +869,30 @@ function Roster({
       <ul className="mt-4 flex flex-col gap-3">
         {manager.picks.map((id, index) => {
           const c = contestantById(id);
+          const points = pickPoints(c, now);
           const others = ownersOf(id).filter((m) => m.id !== manager.id);
           return (
             <li key={`${manager.id}-${id}-${index}`}>
               <button
                 type="button"
                 onClick={() => onOpenPlayer(id)}
-                className={`flex w-full gap-3 rounded-2xl p-3 text-left ${isBootPublic(c, now) ? "bg-boot/20" : "bg-surface"}`}
+                className={`flex w-full gap-3 rounded-2xl p-3 text-left ${points != null ? "bg-boot/20" : "bg-surface"}`}
               >
                 <div className="w-24 shrink-0">
                   <Face id={id} alt="" />
                 </div>
-                <div className="min-w-0 py-1">
+                <div className="min-w-0 flex-1 py-1">
                   <p className="text-xs font-semibold tracking-widest text-muted">PICK {index + 1}</p>
-                  <p className={`font-display text-4xl leading-none ${isBootPublic(c, now) ? "text-boot" : ""}`}>{c.first}</p>
+                  <p className={`font-display text-4xl leading-none ${points != null ? "text-boot" : ""}`}>{c.first}</p>
                   <p className="mt-1 text-sm text-fg">{c.job}</p>
                   <TribePill tribe={c.tribe} />
                   <p className="mt-2 text-sm text-muted">
                     {others.length === 0 ? "Only on this roster." : `Also with ${nameList(others.map((m) => m.name))}.`}
                   </p>
                 </div>
+                <p className={`font-display text-4xl leading-none tabular-nums ${points != null ? "text-boot" : "text-muted"}`}>
+                  {points ?? "—"}
+                </p>
               </button>
             </li>
           );
@@ -811,6 +1015,12 @@ function PlayerBody({
   const mine = pickIndex(seat, id);
   const now = useNow();
   const out = isBootPublic(c, now);
+  const idols = idolCount(c, now);
+  const wins = winCount(c, now);
+  const game = [
+    wins ? `${wins} ${wins === 1 ? "challenge win" : "challenge wins"}` : "",
+    idols ? `${idols} ${idols === 1 ? "idol" : "idols"}` : "",
+  ].filter(Boolean);
 
   return (
     <div>
@@ -829,10 +1039,14 @@ function PlayerBody({
             {c.age} · {c.hometown}
           </p>
           {mine >= 0 && <p className="mt-2 text-sm font-semibold text-ember">Your pick {mine + 1}</p>}
+          {game.length > 0 && <p className="mt-2 text-sm font-semibold text-toka">{game.join(" · ")}</p>}
         </div>
       </div>
       {out && (
-        <p className="mt-4 rounded-xl bg-boot/15 px-3 py-2 text-sm text-boot">{c.boot ?? `${c.first} is out.`}</p>
+        <p className="mt-4 rounded-xl bg-boot/15 px-3 py-2 text-sm text-boot">
+          {c.boot ?? `${c.first} is out.`}
+          {pickPoints(c, now) != null ? ` · ${pickPoints(c, now)} points` : ""}
+        </p>
       )}
       <h3 className="mt-5 text-xs font-semibold tracking-widest text-muted">
         {owners.length === 0 ? "UNDRAFTED" : `DRAFTED BY ${owners.length}`}
@@ -886,6 +1100,7 @@ function Face({ id, alt }: { id: string; alt: string }) {
   const now = useNow();
   const c = contestantById(id);
   const out = isBootPublic(c, now);
+  const idols = idolCount(c, now);
   return (
     <span className="relative block">
       <img
@@ -898,6 +1113,12 @@ function Face({ id, alt }: { id: string; alt: string }) {
         decoding="async"
         className="block h-auto w-full bg-surface-2"
       />
+      {idols > 0 && (
+        <span className={`pointer-events-none absolute left-1.5 inline-flex items-center gap-0.5 rounded-full bg-toka px-1.5 py-0.5 text-[10px] font-semibold text-toka-ink ${out ? "bottom-7" : "bottom-1.5"}`}>
+          <Gem className="size-3" aria-hidden />
+          {idols > 1 ? idols : "Idol"}
+        </span>
+      )}
       {out && (
         <>
           <span className="pointer-events-none absolute inset-0 bg-boot/55" aria-hidden />
@@ -907,6 +1128,49 @@ function Face({ id, alt }: { id: string; alt: string }) {
         </>
       )}
     </span>
+  );
+}
+
+function GameStats({ onOpenPlayer }: { onOpenPlayer: (id: string) => void }) {
+  const now = useNow();
+  const rows = contestants
+    .map((c) => ({ c, idols: idolCount(c, now), wins: winCount(c, now) }))
+    .filter((row) => row.idols > 0 || row.wins > 0)
+    .sort((a, b) => b.wins - a.wins || b.idols - a.idols || a.c.first.localeCompare(b.c.first));
+  const challenges = rows.reduce((sum, row) => sum + row.wins, 0);
+  const idols = rows.reduce((sum, row) => sum + row.idols, 0);
+
+  return (
+    <section>
+      <p className="text-xs font-semibold tracking-widest text-toka">THIS SEASON</p>
+      <h1 className="mt-1 font-display text-5xl leading-none">The game</h1>
+      <p className="mt-2 text-sm text-muted">
+        {challenges} challenge {challenges === 1 ? "win" : "wins"} and {idols} {idols === 1 ? "idol" : "idols"} so far. Counts stay hidden until 11pm Pacific.
+      </p>
+      <ul className="mt-4 flex flex-col gap-2">
+        {rows.map((row) => (
+          <li key={row.c.id}>
+            <button
+              type="button"
+              onClick={() => onOpenPlayer(row.c.id)}
+              className="flex w-full items-center gap-3 rounded-2xl bg-surface p-3 text-left"
+            >
+              <span className="w-12 shrink-0">
+                <Face id={row.c.id} alt="" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className={`block font-semibold ${isBootPublic(row.c, now) ? "text-boot" : ""}`}>{row.c.first}</span>
+                <span className="block text-sm text-muted">
+                  {row.wins ? `${row.wins} ${row.wins === 1 ? "win" : "wins"}` : "No wins yet"}
+                  {row.idols ? ` · ${row.idols} ${row.idols === 1 ? "idol" : "idols"}` : ""}
+                </span>
+              </span>
+              {row.idols > 0 && <Gem className="size-5 shrink-0 text-toka" aria-label={`${row.idols} idol`} />}
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 

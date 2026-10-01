@@ -4,7 +4,7 @@ import { PreviewHostBridge } from "@/components/preview-host-bridge";
 import { reportError } from "@/lib/diagnostics";
 import appCss from "../styles.css?url";
 
-const APP_NAME = "Survivor 51 Draft";
+const APP_NAME = "Survivor Fantasy Draft";
 
 export const Route = createRootRoute({
   head: () => ({
@@ -12,8 +12,9 @@ export const Route = createRootRoute({
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
       { title: APP_NAME },
+      { name: "apple-mobile-web-app-title", content: APP_NAME },
       { name: "theme-color", content: "#100e0c" },
-      { name: "description", content: "The Survivor 51 family draft. A private scoreboard. No payments." },
+      { name: "description", content: "A Survivor fantasy draft, played like fantasy football. Private family scoreboard. No payments." },
     ],
     links: [
       { rel: "icon", type: "image/svg+xml", href: "/favicon.svg" },

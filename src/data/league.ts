@@ -334,6 +334,48 @@ export function winCount(c: Contestant, now = Date.now()): number {
   return row.wins;
 }
 
+/** First six boots are pre-jury in advanced scoring. Standard scoring ignores that line. */
+export const PRE_JURY_BOOTS = 6;
+
+export function pointsForPlace(place: number, castSize: number, advanced = false): number {
+  if (!advanced) return place;
+  const preJury = Math.min(PRE_JURY_BOOTS, Math.max(0, castSize - 1));
+  const juryCount = castSize - preJury;
+  if (place <= juryCount) return place;
+  return juryCount + (place - juryCount) * 2;
+}
+
+export function finishPoints(boot: string | undefined, castSize = contestants.length, advanced = false): number | null {
+  if (!boot) return null;
+  const text = boot.toLowerCase();
+  if (/quit|medevac|medical|evacuat/.test(text)) return 0;
+  if (/sole survivor|\bwinner\b/.test(text)) return 1;
+  if (/runner-?up/.test(text)) return pointsForPlace(2, castSize, advanced);
+  const match = text.match(/(\d+)/);
+  if (!match) return null;
+  const n = Number(match[1]);
+  const place = /place|finalist/.test(text) && !/voted out|eliminat/.test(text) ? n : castSize - n + 1;
+  return Math.max(0, pointsForPlace(place, castSize, advanced));
+}
+
+/** Lowest total is 1st. Ties share a place, and the next place skips. */
+export function standingPlace(total: number, totals: number[]): number {
+  return totals.filter((score) => score < total).length + 1;
+}
+
+export function ordinal(place: number): string {
+  const mod = place % 100;
+  if (mod >= 11 && mod <= 13) return `${place}th`;
+  if (place % 10 === 1) return `${place}st`;
+  if (place % 10 === 2) return `${place}nd`;
+  if (place % 10 === 3) return `${place}rd`;
+  return `${place}th`;
+}
+export function pickPoints(c: Contestant, now = Date.now()): number | null {
+  if (!isBootPublic(c, now)) return null;
+  return finishPoints(c.boot);
+}
+
 export function bonusOf(c: Contestant): number {
   return idolCount(c) + winCount(c);
 }

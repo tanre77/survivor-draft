@@ -1,0 +1,32 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { matchupWinner, pairSeats, snakeSlot, takenBy } from "./custom-leagues.ts";
+
+const seats = [
+  { id: "a", name: "Elise", picks: ["Joe", "Kyle", "Mitch"] },
+  { id: "b", name: "Keegan", picks: ["Kyle", "Eva"] },
+];
+
+test("a snake gives the last pick of a round the first pick of the next", () => {
+  assert.equal(snakeSlot(0, 4), 0);
+  assert.equal(snakeSlot(3, 4), 3);
+  assert.equal(snakeSlot(4, 4), 3);
+  assert.equal(snakeSlot(5, 4), 2);
+  assert.equal(snakeSlot(7, 4), 0);
+  assert.equal(snakeSlot(8, 4), 0);
+});
+
+test("head to head pairs the order and the lower score wins", () => {
+  const pairs = pairSeats(["Elise", "Keegan", "Erin"]);
+  assert.deepEqual(pairs, [["Elise", "Keegan"], ["Erin", null]]);
+  assert.equal(matchupWinner(12, 18), "a");
+  assert.equal(matchupWinner(20, 14), "b");
+  assert.equal(matchupWinner(9, 9), "tie");
+  assert.equal(matchupWinner(9, null), "open");
+});
+
+test("the same players in a different order are the same team", () => {
+  assert.equal(takenBy(seats, ["mitch", "joe", "Kyle"], ["b"]), "Elise");
+  assert.equal(takenBy(seats, ["Kyle", "Eva", "Joe"], ["a"]), null);
+  assert.equal(takenBy(seats, [], ["a"]), null);
+});

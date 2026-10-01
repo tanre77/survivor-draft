@@ -1,7 +1,9 @@
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import { pastSeasons } from "@/data/history";
-import { eraseCustomLeagues, newId, seatColors, type CustomLeague, type CustomSeat } from "@/data/custom-leagues";
-import { SEAT_KEY, bonusOf, contestantByName, idolCount, isBootPublic, winCount } from "@/data/league";
+import { eraseCustomLeagues, lastDrafter, matchupWinner, newId, nextDrafter, pairSeats, rosterKey, seatColors, takenBy, type CustomLeague, type CustomSeat } from "@/data/custom-leagues";
+import { eraseProfile } from "@/data/profile";
+import { SEAT_KEY, bonusOf, contestantByName, idolCount, isBootPublic, pickPoints, winCount } from "@/data/league";
+import { LeagueChat } from "@/components/league-chat";
 import { totalRank } from "@/data/stats";
 
 export function LeagueHome({
@@ -10,26 +12,57 @@ export function LeagueHome({
   onOpenCustom,
   onCreate,
   onImport,
+  profileName,
+  onSaveName,
+  onJoin,
 }: {
   leagues: CustomLeague[];
   onOpenLive: () => void;
   onOpenCustom: (id: string) => void;
   onCreate: () => void;
   onImport: () => void;
+  profileName: string;
+  onSaveName: (name: string) => void;
+  onJoin: (code: string) => Promise<void>;
 }) {
   const [legal, setLegal] = useState(false);
   const [erasing, setErasing] = useState(false);
+  const [code, setCode] = useState("");
+  const [joining, setJoining] = useState(false);
+  const [joinError, setJoinError] = useState("");
+  const [joinName, setJoinName] = useState(profileName);
 
   function eraseDevice() {
     eraseCustomLeagues();
+    eraseProfile();
     localStorage.removeItem(SEAT_KEY);
     window.location.reload();
   }
 
+  async function join(event: FormEvent) {
+    event.preventDefault();
+    const name = (profileName || joinName).trim();
+    if (!name) {
+      setJoinError("Put your name in first.");
+      return;
+    }
+    if (!profileName) onSaveName(name);
+    setJoining(true);
+    setJoinError("");
+    try {
+      await onJoin(code);
+      setCode("");
+    } catch (error) {
+      setJoinError(error instanceof Error ? error.message : "That code didn’t work.");
+    } finally {
+      setJoining(false);
+    }
+  }
+
   return (
     <div>
-      <p className="text-xs font-semibold tracking-widest text-muted">DRAFTS</p>
-      <h1 className="mt-1 font-display text-5xl leading-none">Leagues</h1>
+      <p className="text-xs font-semibold tracking-widest text-muted">SURVIVOR</p>
+      <h1 className="mt-1 font-display text-5xl leading-none">Fantasy Draft</h1>
       <p className="mt-2 max-w-prose text-sm text-muted">
         Survivor 51 is the one in progress. Finished seasons stay on the sheet.
       </p>
@@ -41,6 +74,31 @@ export function LeagueHome({
           Import
         </button>
       </div>
+      <form onSubmit={join} className="mt-2 flex flex-col gap-2">
+        {!profileName && (
+          <input
+            value={joinName}
+            onChange={(event) => setJoinName(event.target.value)}
+            placeholder="Your name"
+            autoComplete="name"
+            className="min-h-12 w-full rounded-2xl bg-surface px-4 text-base"
+          />
+        )}
+        <div className="flex gap-2">
+          <input
+            value={code}
+            onChange={(event) => setCode(event.target.value.toUpperCase())}
+            placeholder="Invite code"
+            autoCapitalize="characters"
+            autoComplete="off"
+            className="min-h-12 min-w-0 flex-1 rounded-2xl bg-surface px-4 text-base tracking-widest"
+          />
+          <button type="submit" disabled={joining} className="min-h-12 rounded-2xl bg-surface px-4 text-sm font-semibold disabled:opacity-40">
+            {joining ? "Joining" : "Join"}
+          </button>
+        </div>
+        {joinError && <p className="text-sm text-boot">{joinError}</p>}
+      </form>
 
       <h2 className="mt-6 text-xs font-semibold tracking-widest text-toka">IN PROGRESS</h2>
       <ul className="mt-2 flex flex-col gap-2">
@@ -75,7 +133,7 @@ export function LeagueHome({
         {legal && (
           <div className="mt-3 flex flex-col gap-3 text-sm text-muted">
             <p>This is a private family scoreboard. It does not take payment, sell data, or require an account.</p>
-            <p>Your seat and any leagues you create stay on this device. Cast photos only identify picks. No location, contacts, camera, or microphone.</p>
+            <p>Your seat, profile name, and any leagues you create stay on this device. An invite code stores that league, including the chat, so a friend with the code can join. No location, contacts, camera, or microphone.</p>
             <p>Crash reports stay off until a Firebase config is added. Crashlytics is for the iOS and Android apps, not the browser.</p>
             <p>
               <a className="font-semibold text-toka" href="/privacy.html">Privacy</a>
@@ -125,9 +183,11 @@ export function FinishedSeasons({ onOpen }: { onOpen: (id: string) => void }) {
 }
 
 export function CreateLeague({
+  you,
   onCancel,
   onCreate,
 }: {
+  you: string;
   onCancel: () => void;
   onCreate: (league: CustomLeague) => void;
 }) {
@@ -136,6 +196,8 @@ export function CreateLeague({
   const [people, setPeople] = useState<string[]>([]);
   const [bonus, setBonus] = useState(false);
   const [trades, setTrades] = useState(false);
+  const [advanced, setAdvanced] = useState(false);
+  const [headToHead, setHeadToHead] = useState(false);
 
   function addPerson() {
     const next = draft.trim();
@@ -154,7 +216,10 @@ export function CreateLeague({
     <div>
       <p className="text-xs font-semibold tracking-widest text-muted">OUTSIDE SURVIVOR 51</p>
       <h1 className="mt-1 font-display text-5xl leading-none">New league</h1>
-      <p className="mt-2 text-sm text-muted">It starts in progress. Survivor 51 stays the live board.</p>
+      <p className="mt-2 text-sm text-muted">
+        It starts in progress. Survivor 51 stays the live board.
+        {you ? ` You join as ${you}.` : " Save your name on the You tab and you’ll be added automatically."}
+      </p>
 
       <label className="mt-5 block text-sm font-semibold">
         League name
@@ -247,17 +312,61 @@ export function CreateLeague({
 
       <button
         type="button"
-        disabled={!ready}
-        onClick={() =>
+        role="switch"
+        aria-checked={advanced}
+        onClick={() => setAdvanced((on) => !on)}
+        className="mt-3 flex min-h-12 w-full items-center justify-between gap-3 rounded-2xl bg-surface px-4 py-3 text-left"
+      >
+        <span>
+          <span className="block text-sm font-semibold">Advanced scoring</span>
+          <span className="mt-0.5 block text-sm text-muted">
+            {advanced
+              ? "On. The first six boots are pre-jury, 2 points apart. The jury is 1 point apart. The winner is still 1."
+              : "Off. Pre-jury and jury score the same, one point apart down to the winner."}
+          </span>
+        </span>
+        <span className={`relative h-7 w-12 shrink-0 rounded-full ${advanced ? "bg-toka" : "bg-line"}`}>
+          <span className={`absolute top-0.5 size-6 rounded-full bg-fg ${advanced ? "left-5" : "left-0.5"}`} />
+        </span>
+      </button>
+
+      <button
+        type="button"
+        role="switch"
+        aria-checked={headToHead}
+        onClick={() => setHeadToHead((on) => !on)}
+        className="mt-3 flex min-h-12 w-full items-center justify-between gap-3 rounded-2xl bg-surface px-4 py-3 text-left"
+      >
+        <span>
+          <span className="block text-sm font-semibold">Head to head</span>
+          <span className="mt-0.5 block text-sm text-muted">
+            {headToHead
+              ? "On. Seats pair as 1 vs 2, 3 vs 4. The lower score takes the matchup. An odd seat gets a bye."
+              : "Off. The lowest total in the whole league wins."}
+          </span>
+        </span>
+        <span className={`relative h-7 w-12 shrink-0 rounded-full ${headToHead ? "bg-toka" : "bg-line"}`}>
+          <span className={`absolute top-0.5 size-6 rounded-full bg-fg ${headToHead ? "left-5" : "left-0.5"}`} />
+        </span>
+      </button>
+
+      <button
+        type="button"
+        disabled={!ready && !(you && name.trim())}
+        onClick={() => {
+          const names = you && !people.some((person) => person.toLowerCase() === you.toLowerCase()) ? [you, ...people] : people;
+          if (!name.trim() || names.length === 0) return;
           onCreate({
             id: newId(),
             name: name.trim(),
             bonus,
             trades,
             drafting: true,
-            seats: people.map((person) => ({ id: newId(), name: person, picks: [] })),
-          })
-        }
+            advanced,
+            headToHead,
+            seats: names.map((person) => ({ id: newId(), name: person, picks: [] })),
+          });
+        }}
         className="mt-6 min-h-12 w-full rounded-2xl bg-ember text-base font-semibold text-ember-ink disabled:opacity-40"
       >
         Start league
@@ -269,22 +378,47 @@ export function CreateLeague({
   );
 }
 
+function livePoints(seat: CustomSeat): number | null {
+  if (seat.scores && seat.scores.length) return seat.scores.reduce((sum, n) => sum + n, 0);
+  if (seat.total) {
+    const parsed = Number(seat.total.replace(/[^0-9.-]/g, ""));
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  let total = 0;
+  let any = false;
+  for (const pick of seat.picks) {
+    const player = contestantByName(pick);
+    const points = player ? pickPoints(player) : null;
+    if (points == null) continue;
+    any = true;
+    total += points;
+  }
+  return any ? total : null;
+}
+
 export function CustomBoard({
   league,
   onOpenSeat,
   onAddSeat,
   onCloseDraft,
   onDelete,
+  onInvite,
+  onShuffle,
+  you,
 }: {
   league: CustomLeague;
   onOpenSeat: (id: string) => void;
   onAddSeat: (name: string) => void;
   onCloseDraft: () => void;
   onDelete: () => void;
+  onInvite: () => void;
+  onShuffle: () => void;
+  you: string;
 }) {
   const [draft, setDraft] = useState("");
   const [armed, setArmed] = useState(false);
   const [closing, setClosing] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   function add() {
     const next = draft.trim();
@@ -302,6 +436,11 @@ export function CustomBoard({
     return totalRank(a.total) - totalRank(b.total);
   });
   const scored = league.seats.some((seat) => seat.scores != null && seat.scores.length > 0);
+  const clock = league.drafting && !scored ? nextDrafter(league.seats) : null;
+  const orderLocked = league.seats.some((seat) => seat.picks.length > 0);
+  const rounds = [0, 1, 2, 3].map((round) =>
+    league.seats.map((_, slot) => league.seats[round % 2 === 0 ? slot : league.seats.length - 1 - slot].name),
+  );
 
   return (
     <div>
@@ -318,10 +457,91 @@ export function CustomBoard({
                 ? "Trades are on until the draft closes."
                 : "Trades are off."
               : "The draft is closed."}{" "}
-            {league.bonus ? "Bonus points are on." : "Bonus points are off."}
+            {league.bonus ? "Bonus points are on." : "Bonus points are off."}{" "}
+            {league.advanced ? "Advanced scoring is on." : "Standard scoring is on."}{" "}
+            {league.headToHead ? "Head to head is on." : "It's a total-points league."}
           </>
         )}
       </p>
+      {league.code ? (
+        <button
+          type="button"
+          onClick={() => {
+            const share = league.code ?? "";
+            void navigator.clipboard?.writeText(share).catch(() => undefined);
+            setCopied(true);
+            window.setTimeout(() => setCopied(false), 1500);
+          }}
+          className="mt-3 flex w-full items-center justify-between rounded-2xl bg-surface px-4 py-3 text-left"
+        >
+          <span>
+            <span className="block text-xs font-semibold tracking-widest text-toka">INVITE CODE</span>
+            <span className="mt-1 block font-display text-4xl tracking-widest">{`${league.code.slice(0, 3)} ${league.code.slice(3)}`}</span>
+          </span>
+          <span className="text-sm font-semibold text-muted">{copied ? "Copied" : "Copy"}</span>
+        </button>
+      ) : (
+        <button type="button" onClick={onInvite} className="mt-3 min-h-12 w-full rounded-2xl bg-surface text-sm font-semibold">
+          Make an invite code
+        </button>
+      )}
+      {league.drafting && !scored && league.seats.length > 1 && (
+        <section className="mt-4 rounded-2xl bg-surface p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold tracking-widest text-toka">SNAKE DRAFT</p>
+              <p className="mt-1 text-sm text-muted">
+                {clock ? `${clock.name} is on the clock.` : "Add at least two people."} Last pick of a round goes first in the next.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={onShuffle}
+              disabled={orderLocked}
+              className="shrink-0 rounded-xl bg-ember px-3 py-2 text-sm font-semibold text-ember-ink disabled:opacity-40"
+            >
+              Randomize
+            </button>
+          </div>
+          <ol className="mt-3 flex flex-col gap-2">
+            {rounds.map((names, round) => (
+              <li key={round} className="text-sm">
+                <span className="font-semibold">Round {round + 1}. </span>
+                <span className="text-muted">{names.join(" · ")}</span>
+              </li>
+            ))}
+          </ol>
+          {orderLocked && <p className="mt-2 text-xs text-muted">Order locks after the first pick.</p>}
+        </section>
+      )}
+      {league.headToHead && (
+        <section className="mt-4 rounded-2xl bg-surface p-4">
+          <p className="text-xs font-semibold tracking-widest text-toka">HEAD TO HEAD</p>
+          <p className="mt-1 text-sm text-muted">Pairs follow this order. The lower score wins. An odd seat gets a bye.</p>
+          <ul className="mt-3 flex flex-col gap-2">
+            {pairSeats(league.seats).map(([a, b]) => {
+              const aPoints = livePoints(a);
+              const bPoints = b ? livePoints(b) : null;
+              const winner = b ? matchupWinner(aPoints, bPoints) : "open";
+              return (
+                <li key={a.id} className="flex items-center justify-between gap-3 rounded-xl bg-surface-2 px-3 py-3 text-sm">
+                  <span className={winner === "a" ? "font-semibold text-toka" : ""}>
+                    {a.name}
+                    <span className="ml-2 tabular-nums">{aPoints ?? "—"}</span>
+                  </span>
+                  <span className="text-muted">{b ? (winner === "tie" ? "Tied" : "vs") : "Bye"}</span>
+                  {b && (
+                    <span className={`text-right ${winner === "b" ? "font-semibold text-toka" : ""}`}>
+                      <span className="mr-2 tabular-nums">{bPoints ?? "—"}</span>
+                      {b.name}
+                    </span>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
       <ul className="mt-4 flex flex-col gap-2">
         {(scored ? ranked : league.seats).map((seat, index) => {
           const color = seatColors(seat.name, index);
@@ -336,6 +556,7 @@ export function CustomBoard({
                   <span className="rounded-lg px-3 py-1.5 text-sm font-semibold" style={{ background: color.bg, color: color.fg }}>
                     {seat.name}
                   </span>
+                  {clock?.id === seat.id && <span className="mt-1 block text-xs font-semibold tracking-widest text-toka">ON THE CLOCK</span>}
                   {scored && seat.picks.length > 0 && (
                     <span className="mt-1 block text-sm text-muted">{seat.picks.join(" · ")}</span>
                   )}
@@ -398,6 +619,7 @@ export function CustomBoard({
           Delete {league.name}
         </button>
       )}
+      <LeagueChat code={league.code} you={you} />
     </div>
   );
 }
@@ -421,6 +643,7 @@ export function CustomTeam({
 }) {
   const [draft, setDraft] = useState("");
   const [deal, setDeal] = useState<{ mine: number; otherId: string | null } | null>(null);
+  const [blocked, setBlocked] = useState("");
   const scored = bonus
     ? seat.picks.map((pick) => {
         const player = contestantByName(pick);
@@ -431,11 +654,21 @@ export function CustomTeam({
   const others = seats.filter((other) => other.id !== seat.id && other.picks.length > 0);
   const partner = deal?.otherId ? seats.find((other) => other.id === deal.otherId) : undefined;
   const canTrade = drafting && trades;
+  const clock = drafting ? nextDrafter(seats) : null;
+  const myTurn = !clock || clock.id === seat.id;
+  const canUndo = lastDrafter(seats)?.id === seat.id;
 
   function add() {
     const next = draft.trim();
-    if (!next || !drafting) return;
-    onChange([...seat.picks, next]);
+    if (!next || !drafting || !myTurn) return;
+    const picks = [...seat.picks, next];
+    const owner = takenBy(seats, picks, [seat.id]);
+    if (owner) {
+      setBlocked(`${owner} already has that exact team.`);
+      return;
+    }
+    setBlocked("");
+    onChange(picks);
     setDraft("");
   }
 
@@ -446,6 +679,10 @@ export function CustomTeam({
       {bonus && <p className="mt-2 text-sm text-toka">Bonus −{teamBonus} off the score</p>}
       {!drafting && <p className="mt-2 text-sm text-muted">The draft is closed.</p>}
       {drafting && !trades && <p className="mt-2 text-sm text-muted">Trades are off for this league.</p>}
+      {drafting && !myTurn && clock && <p className="mt-2 text-sm text-muted">Waiting on {clock.name}. The draft snakes, so the last pick of a round goes first in the next.</p>}
+      {drafting && myTurn && <p className="mt-2 text-sm font-semibold text-toka">You're on the clock.</p>}
+      {drafting && <p className="mt-2 text-sm text-muted">No two seats can draft the same exact team.</p>}
+      {blocked && <p className="mt-2 text-sm font-semibold text-boot">{blocked}</p>}
       {seat.picks.length === 0 && <p className="mt-4 text-sm text-muted">No picks yet.</p>}
       <ol className="mt-4 flex flex-col gap-2">
         {seat.picks.map((pick, pickIndex) => {
@@ -484,10 +721,13 @@ export function CustomTeam({
                     Trade
                   </button>
                 )}
-                {drafting && (
+                {drafting && canUndo && pickIndex === seat.picks.length - 1 && (
                   <button
                     type="button"
-                    onClick={() => onChange(seat.picks.filter((_, i) => i !== pickIndex))}
+                    onClick={() => {
+                      setBlocked("");
+                      onChange(seat.picks.filter((_, i) => i !== pickIndex));
+                    }}
                     className="text-sm font-semibold text-muted"
                   >
                     Remove
@@ -519,6 +759,21 @@ export function CustomTeam({
                 key={`${pick}-${index}`}
                 type="button"
                 onClick={() => {
+                  const minePicks = seat.picks.map((pick, index) => (index === deal.mine ? pick : pick));
+                  const offered = seat.picks[deal.mine];
+                  const wanted = partner.picks[index];
+                  if (offered == null || wanted == null) return;
+                  minePicks[deal.mine] = wanted;
+                  const otherPicks = partner.picks.map((pick, pickIndex) => (pickIndex === index ? offered : pick));
+                  const mineHit = takenBy(seats, minePicks, [seat.id, partner.id]);
+                  const otherHit = takenBy(seats, otherPicks, [seat.id, partner.id]);
+                  const swappedSame = rosterKey(minePicks) !== "" && rosterKey(minePicks) === rosterKey(otherPicks);
+                  if (mineHit || otherHit || swappedSame) {
+                    const who = mineHit ?? otherHit ?? partner.name;
+                    setBlocked(`That trade would copy ${who}'s team.`);
+                    return;
+                  }
+                  setBlocked("");
                   onTrade(deal.mine, partner.id, index);
                   setDeal(null);
                 }}
@@ -532,7 +787,7 @@ export function CustomTeam({
           </button>
         </div>
       )}
-      {drafting && (
+      {drafting && myTurn && (
       <label className="mt-4 block text-sm font-semibold">
         Add a pick
         <span className="mt-1 flex gap-2">

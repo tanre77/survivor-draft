@@ -118,7 +118,7 @@ struct PolicyView: View {
             VStack(alignment: .leading, spacing: 12) {
                 Text("Privacy")
                     .font(.largeTitle.bold())
-                Text("Survivor 51 Draft is a private family scoreboard. It does not take payment, create an account, or upload your seat.")
+                Text("Survivor Fantasy Draft is a private family scoreboard. It does not take payment, create an account, or upload your seat.")
                 Text("The app does not ask for your location, contacts, camera, or microphone. Crashlytics stays off until a Firebase config file is added to the build.")
                 Text("Erase the app to delete the board saved on this device.")
                 Link("Support", destination: URL(string: "https://github.com/tanre77")!)

@@ -1,4 +1,4 @@
-# Family Survivor League
+# Survivor Fantasy Draft
 
 A Survivor fantasy draft, played like fantasy football.
 

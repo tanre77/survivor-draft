@@ -1,4 +1,4 @@
-# Survivor Draft (SwiftUI)
+# Survivor Fantasy Draft (SwiftUI)
 
 Native iOS app. Same board as the website, generated from `shared/board.json`.
 

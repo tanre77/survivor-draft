@@ -1,4 +1,4 @@
-import { managers } from "@/data/league";
+import { managers } from "./league.ts";
 
 export type CustomSeat = {
   id: string;
@@ -16,7 +16,10 @@ export type CustomLeague = {
   bonus: boolean;
   trades: boolean;
   drafting: boolean;
+  advanced: boolean;
+  headToHead: boolean;
   seats: CustomSeat[];
+  code?: string;
 };
 
 const KEY = "draft-custom-leagues";
@@ -44,6 +47,9 @@ export function loadCustomLeagues(): CustomLeague[] {
         bonus: league.bonus === true,
         trades: league.trades === true,
         drafting: league.drafting !== false,
+        advanced: league.advanced === true,
+        headToHead: league.headToHead === true,
+        ...(typeof league.code === "string" && league.code.trim() ? { code: league.code.trim().toUpperCase() } : {}),
         seats: league.seats.map((seat, index) => ({
           id: typeof seat?.id === "string" ? seat.id : `${league.name}-${index}`,
           name: typeof seat?.name === "string" ? seat.name : "Seat",
@@ -69,8 +75,73 @@ export function eraseCustomLeagues() {
   localStorage.removeItem(KEY);
 }
 
+export function snakeSlot(pickNumber: number, count: number): number {
+  if (count <= 1) return 0;
+  const round = Math.floor(pickNumber / count);
+  const slot = pickNumber % count;
+  return round % 2 === 0 ? slot : count - 1 - slot;
+}
+
+export function nextDrafter<T extends { picks: string[] }>(seats: T[]): T | null {
+  if (seats.length === 0) return null;
+  const made = seats.reduce((sum, seat) => sum + seat.picks.length, 0);
+  return seats[snakeSlot(made, seats.length)] ?? null;
+}
+
+export function lastDrafter<T extends { picks: string[] }>(seats: T[]): T | null {
+  if (seats.length === 0) return null;
+  const made = seats.reduce((sum, seat) => sum + seat.picks.length, 0);
+  if (made === 0) return null;
+  return seats[snakeSlot(made - 1, seats.length)] ?? null;
+}
+
+export function shuffleSeats<T>(list: T[]): T[] {
+  const next = [...list];
+  const bytes = new Uint32Array(next.length);
+  crypto.getRandomValues(bytes);
+  for (let i = next.length - 1; i > 0; i -= 1) {
+    const j = bytes[i] % (i + 1);
+    const swap = next[i];
+    next[i] = next[j];
+    next[j] = swap;
+  }
+  return next;
+}
+
+export function pairSeats<T>(seats: T[]): [T, T | null][] {
+  const pairs: [T, T | null][] = [];
+  for (let i = 0; i < seats.length; i += 2) pairs.push([seats[i], seats[i + 1] ?? null]);
+  return pairs;
+}
+
+/** Lowest score wins a head-to-head. Open means someone has no score yet. */
+export function matchupWinner(a: number | null, b: number | null): "a" | "b" | "tie" | "open" {
+  if (a == null || b == null) return "open";
+  if (a === b) return "tie";
+  return a < b ? "a" : "b";
+}
+
 export function newId(): string {
   return crypto.randomUUID();
+}
+
+export function rosterKey(picks: string[]): string {
+  return picks
+    .map((pick) => pick.trim().toLowerCase())
+    .filter((pick) => pick !== "")
+    .sort()
+    .join("\0");
+}
+
+/** Name of another seat that already has this exact roster. Order does not matter. Empty rosters never match. */
+export function takenBy(seats: { id: string; name: string; picks: string[] }[], picks: string[], skipIds: string[]): string | null {
+  const key = rosterKey(picks);
+  if (!key) return null;
+  for (const seat of seats) {
+    if (skipIds.includes(seat.id)) continue;
+    if (rosterKey(seat.picks) === key) return seat.name;
+  }
+  return null;
 }
 
 export function seatColors(name: string, index: number): { bg: string; fg: string } {

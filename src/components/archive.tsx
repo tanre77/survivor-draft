@@ -1,27 +1,38 @@
 import { useState } from "react";
-import { managers } from "@/data/league";
+import { PRE_JURY_BOOTS, contestants, managers, pointsForPlace } from "@/data/league";
 import { pastSeasons, rosterFor, standingFor, type PastSeason, type Standing } from "@/data/history";
 
-const PREMERGE = [
-  ["1st boot", "1"],
-  ["2nd", "2"],
-  ["3rd", "3"],
-  ["4th", "4"],
-  ["5th", "5"],
-  ["6th", "6"],
+const CAST = contestants.length;
+const STANDARD_EARLY = [
+  ["1st boot", String(CAST)],
+  ["2nd", String(CAST - 1)],
+  ["3rd", String(CAST - 2)],
+  ["4th", String(CAST - 3)],
+  ["5th", String(CAST - 4)],
+  ["6th", String(CAST - 5)],
+];
+const STANDARD_LATE = [
+  ["4th place", "4"],
+  ["3rd place", "3"],
+  ["Runner-up", "2"],
+  ["Sole survivor", "1"],
 ];
 
-const JURY = [
-  ["7th", "7"],
-  ["8th", "8"],
-  ["9th", "9"],
-  ["10th", "10"],
-  ["11th", "12"],
-  ["12th", "14"],
-  ["13th", "16"],
-  ["14th", "18"],
-  ["15th", "20"],
-  ["16th · winner", "22"],
+function bootPoints(boot: number, advanced: boolean): string {
+  const place = CAST - boot + 1;
+  return String(pointsForPlace(place, CAST, advanced));
+}
+
+const ADVANCED_PRE = Array.from({ length: PRE_JURY_BOOTS }, (_, index) => {
+  const boot = index + 1;
+  return [`${boot === 1 ? "1st" : boot === 2 ? "2nd" : boot === 3 ? "3rd" : `${boot}th`} boot`, bootPoints(boot, true)];
+});
+const ADVANCED_JURY = [
+  ["7th boot", bootPoints(7, true)],
+  ["8th", bootPoints(8, true)],
+  ["3rd place", "3"],
+  ["Runner-up", "2"],
+  ["Sole survivor", "1"],
 ];
 
 export function RulesBoard() {
@@ -36,15 +47,23 @@ export function RulesBoard() {
       </div>
 
       <section className="rounded-2xl bg-surface p-4">
-        <h3 className="font-display text-3xl leading-none">Pre-merge</h3>
-        <p className="mt-1 text-sm text-muted">Boots before the merge, in order.</p>
-        <ScoreGrid rows={PREMERGE} />
+        <h3 className="font-display text-3xl leading-none">Standard</h3>
+        <p className="mt-1 text-sm text-muted">
+          Pre-jury and jury do not matter. This cast is {CAST}, so the first boot is {CAST} and each later boot is one point less. The winner is 1. Survivor 51 uses this.
+        </p>
+        <ScoreGrid rows={STANDARD_EARLY} emphasizeFirst />
+        <ScoreGrid rows={STANDARD_LATE} emphasizeLast />
       </section>
 
       <section className="rounded-2xl bg-surface p-4">
-        <h3 className="font-display text-3xl leading-none">Jury</h3>
-        <p className="mt-1 text-sm text-muted">Scored off an 18-person merge. The winner is worth 22.</p>
-        <ScoreGrid rows={JURY} emphasizeLast />
+        <h3 className="font-display text-3xl leading-none">Advanced</h3>
+        <p className="mt-1 text-sm text-muted">
+          The first {PRE_JURY_BOOTS} boots are pre-jury and cost 2 points apart. From the 7th boot on, that is the jury, and each finish is 1 point apart. The winner is still 1. A new league can turn this on.
+        </p>
+        <p className="mt-3 text-xs font-semibold tracking-widest text-muted">PRE-JURY</p>
+        <ScoreGrid rows={ADVANCED_PRE} emphasizeFirst />
+        <p className="mt-3 text-xs font-semibold tracking-widest text-muted">JURY</p>
+        <ScoreGrid rows={ADVANCED_JURY} emphasizeLast />
       </section>
 
       <section className="rounded-2xl bg-surface p-4">
@@ -72,24 +91,24 @@ export function RulesBoard() {
       <section className="rounded-2xl border border-line p-4">
         <p className="text-xs font-semibold tracking-widest text-toka">WORKED EXAMPLE</p>
         <p className="mt-2 text-sm">
-          A first boot is worth 1. The winner is worth 22. Early boots keep a roster low, which is why the lowest total wins.
+          Standard: a first boot is worth {CAST}. Advanced: a first boot is worth {bootPoints(1, true)} because those six are pre-jury. Either way the winner is 1, and the lowest total wins.
         </p>
       </section>
     </div>
   );
 }
 
-function ScoreGrid({ rows, emphasizeLast }: { rows: string[][]; emphasizeLast?: boolean }) {
+function ScoreGrid({ rows, emphasizeLast, emphasizeFirst }: { rows: string[][]; emphasizeLast?: boolean; emphasizeFirst?: boolean }) {
   return (
     <ul className="mt-3 grid grid-cols-2 gap-2">
       {rows.map(([place, pts], index) => {
-        const last = emphasizeLast && index === rows.length - 1;
+        const mark = (emphasizeLast && index === rows.length - 1) || (emphasizeFirst && index === 0);
         return (
           <li
             key={place}
-            className={`flex items-center justify-between rounded-xl px-3 py-2 ${last ? "bg-toka text-toka-ink" : "bg-surface-2"}`}
+            className={`flex items-center justify-between rounded-xl px-3 py-2 ${mark ? "bg-toka text-toka-ink" : "bg-surface-2"}`}
           >
-            <span className={`text-sm ${last ? "font-semibold" : "text-muted"}`}>{place}</span>
+            <span className={`text-sm ${mark ? "font-semibold" : "text-muted"}`}>{place}</span>
             <span className="font-display text-2xl leading-none tabular-nums">{pts}</span>
           </li>
         );
