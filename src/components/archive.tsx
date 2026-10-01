@@ -35,6 +35,32 @@ const ADVANCED_JURY = [
   ["Sole survivor", "1"],
 ];
 
+export function FinishedSeasons({ onOpen }: { onOpen: (id: string) => void }) {
+  return (
+    <div>
+      <p className="text-xs font-semibold tracking-widest text-muted">ON THE SHEET</p>
+      <h1 className="mt-1 font-display text-5xl leading-none">Past seasons</h1>
+      <ul className="mt-4 flex flex-col gap-2">
+        {pastSeasons.map((season) => {
+          const winner = season.standings[0];
+          return (
+            <li key={season.id}>
+              <button type="button" onClick={() => onOpen(season.id)} className="w-full rounded-2xl bg-surface px-4 py-3 text-left">
+                <span className="block text-xs font-semibold tracking-widest text-muted">FINISHED</span>
+                <span className="block font-display text-3xl leading-none">Season {season.season}</span>
+                <span className="mt-1 block text-sm text-muted">
+                  {winner.name} won · {winner.total}
+                  {winner.prize ? ` · ${winner.prize}` : ""}
+                </span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
 export function RulesBoard() {
   return (
     <div className="flex flex-col gap-4">

@@ -1,12 +1,7 @@
-import { createContext, useContext, useEffect, useId, useMemo, useState, type ReactNode } from "react";
+import { createContext, lazy, Suspense, useContext, useEffect, useId, useMemo, useState, type ReactNode } from "react";
 import { BarChart3, ChevronLeft, ChevronRight, Gem, LayoutGrid, ScrollText, Search, Trophy, UserRound, Users, X } from "lucide-react";
-import { HistoryBoard, PastTeam, RulesBoard, SeasonPage } from "@/components/archive";
-import { ImportLeague } from "@/components/import-league";
 import { reportError, startDiagnostics } from "@/lib/diagnostics";
-import { CreateLeague, CustomBoard, CustomTeam, FinishedSeasons, LeagueHome } from "@/components/league-home";
-import { ProfileBoard } from "@/components/profile-board";
-import { SupportBoard } from "@/components/support-board";
-import { StatsBoard } from "@/components/stats-board";
+import { CreateLeague, CustomBoard, CustomTeam, LeagueHome } from "@/components/league-home";
 import { lastDrafter, loadCustomLeagues, newId, nextDrafter, rosterKey, saveCustomLeagues, shuffleSeats, takenBy, type CustomLeague } from "@/data/custom-leagues";
 import type { ImportedSheet } from "@/data/import-sheet";
 import { loadProfile, saveProfile } from "@/data/profile";
@@ -29,6 +24,7 @@ import {
   pickIndex,
   pickPoints,
   standingPlace,
+  votingRecord,
   winCount,
   type Contestant,
   type Manager,
@@ -36,6 +32,20 @@ import {
 
 type CastFilter = "all" | "savu" | "toka" | "in" | "out" | "mine";
 type Tab = "league" | "cards" | "mine" | "past" | "rules" | "stats";
+
+const StatsBoard = lazy(() => import("@/components/stats-board").then((mod) => ({ default: mod.StatsBoard })));
+const ProfileBoard = lazy(() => import("@/components/profile-board").then((mod) => ({ default: mod.ProfileBoard })));
+const SupportBoard = lazy(() => import("@/components/support-board").then((mod) => ({ default: mod.SupportBoard })));
+const ImportLeague = lazy(() => import("@/components/import-league").then((mod) => ({ default: mod.ImportLeague })));
+const HistoryBoard = lazy(() => import("@/components/archive").then((mod) => ({ default: mod.HistoryBoard })));
+const PastTeam = lazy(() => import("@/components/archive").then((mod) => ({ default: mod.PastTeam })));
+const RulesBoard = lazy(() => import("@/components/archive").then((mod) => ({ default: mod.RulesBoard })));
+const SeasonPage = lazy(() => import("@/components/archive").then((mod) => ({ default: mod.SeasonPage })));
+const FinishedSeasons = lazy(() => import("@/components/archive").then((mod) => ({ default: mod.FinishedSeasons })));
+
+function Later({ children }: { children: ReactNode }) {
+  return <Suspense fallback={<p className="py-8 text-sm text-muted">Loading…</p>}>{children}</Suspense>;
+}
 
 const ClockContext = createContext(0);
 
@@ -344,7 +354,7 @@ export function DraftLeague() {
           />
         )}
         {place.view === "home" && homeTab === "you" && (
-          <>
+          <Later>
             <ProfileBoard
               leagues={leagues}
               onName={(name) => {
@@ -353,16 +363,22 @@ export function DraftLeague() {
               }}
             />
             <SupportBoard you={profileName} />
-          </>
+          </Later>
         )}
-        {place.view === "home" && homeTab === "stats" && <StatsBoard seatName={seat?.name} />}
+        {place.view === "home" && homeTab === "stats" && (
+          <Later>
+            <StatsBoard seatName={seat?.name} />
+          </Later>
+        )}
         {place.view === "home" && homeTab === "past" && (
-          <FinishedSeasons
-            onOpen={(id) => {
-              setPastTeam(null);
-              setPlace({ view: "past", id });
-            }}
-          />
+          <Later>
+            <FinishedSeasons
+              onOpen={(id) => {
+                setPastTeam(null);
+                setPlace({ view: "past", id });
+              }}
+            />
+          </Later>
         )}
         {place.view === "make" && (
           <CreateLeague
@@ -395,14 +411,16 @@ export function DraftLeague() {
           />
         )}
         {place.view === "import" && (
-          <ImportLeague
-            onCancel={() => setPlace({ view: "home" })}
-            onImport={(sheets) => {
-              setLeagues((list) => [...importedLeagues(list, sheets), ...list]);
-              setCustomSeat(null);
-              setPlace({ view: "home" });
-            }}
-          />
+          <Later>
+            <ImportLeague
+              onCancel={() => setPlace({ view: "home" })}
+              onImport={(sheets) => {
+                setLeagues((list) => [...importedLeagues(list, sheets), ...list]);
+                setCustomSeat(null);
+                setPlace({ view: "home" });
+              }}
+            />
+          </Later>
         )}
         {place.view === "custom" && custom && !customPerson && (
           <CustomBoard
@@ -485,9 +503,15 @@ export function DraftLeague() {
           />
         )}
         {place.view === "past" && !pastTeam && (
-          <SeasonPage seasonId={place.id} seatName={seat?.name ?? ""} onOpenTeam={(name) => setPastTeam({ seasonId: place.id, name })} />
+          <Later>
+            <SeasonPage seasonId={place.id} seatName={seat?.name ?? ""} onOpenTeam={(name) => setPastTeam({ seasonId: place.id, name })} />
+          </Later>
         )}
-        {place.view === "past" && pastTeam && <PastTeam seasonId={pastTeam.seasonId} name={pastTeam.name} />}
+        {place.view === "past" && pastTeam && (
+          <Later>
+            <PastTeam seasonId={pastTeam.seasonId} name={pastTeam.name} />
+          </Later>
+        )}
         {liveSeat && teamId && (
           <Roster
             manager={managerById(teamId) ?? liveSeat}
@@ -503,17 +527,27 @@ export function DraftLeague() {
           <CardBoard seat={liveSeat} query={query} filter={filter} onOpenPlayer={(id) => setStack([{ kind: "player", id }])} />
         )}
         {liveSeat && !teamId && tab === "past" && !pastTeam && (
-          <HistoryBoard seatName={liveSeat.name} onOpenTeam={(seasonId, name) => setPastTeam({ seasonId, name })} />
+          <Later>
+            <HistoryBoard seatName={liveSeat.name} onOpenTeam={(seasonId, name) => setPastTeam({ seasonId, name })} />
+          </Later>
         )}
-        {liveSeat && !teamId && tab === "past" && pastTeam && <PastTeam seasonId={pastTeam.seasonId} name={pastTeam.name} />}
-        {liveSeat && !teamId && tab === "rules" && <RulesBoard />}
+        {liveSeat && !teamId && tab === "past" && pastTeam && (
+          <Later>
+            <PastTeam seasonId={pastTeam.seasonId} name={pastTeam.name} />
+          </Later>
+        )}
+        {liveSeat && !teamId && tab === "rules" && (
+          <Later>
+            <RulesBoard />
+          </Later>
+        )}
         {liveSeat && !teamId && tab === "stats" && (
-          <>
+          <Later>
             <GameStats onOpenPlayer={(id) => setStack([{ kind: "player", id }])} />
             <div className="mt-8">
               <StatsBoard seatName={liveSeat.name} />
             </div>
-          </>
+          </Later>
         )}
       </main>
 
@@ -737,7 +771,7 @@ function LeagueBoard({
           <li
             key={m.id}
             id={`seat-${m.id}`}
-            className={`rounded-2xl bg-surface p-3 ${m.id === seat.id ? "ring-2 ring-ember" : ""}`}
+            className={`rounded-2xl bg-surface p-3 [content-visibility:auto] [contain-intrinsic-size:auto_320px] ${m.id === seat.id ? "ring-2 ring-ember" : ""}`}
           >
             <div className="flex items-center justify-between gap-3">
               <button
@@ -988,7 +1022,7 @@ function Sheet({
           </button>
         </div>
         {panel.kind === "player" ? (
-          <PlayerBody id={panel.id} titleId={titleId} seat={seat} onOpenManager={onOpenManager} />
+          <PlayerBody id={panel.id} titleId={titleId} seat={seat} onOpenManager={onOpenManager} onOpenPlayer={onOpenPlayer} />
         ) : (
           <div>
             <ManagerBody id={panel.id} titleId={titleId} onOpenPlayer={onOpenPlayer} onOpenManager={onOpenManager} />
@@ -1004,11 +1038,13 @@ function PlayerBody({
   titleId,
   seat,
   onOpenManager,
+  onOpenPlayer,
 }: {
   id: string;
   titleId: string;
   seat: Manager;
   onOpenManager: (id: string) => void;
+  onOpenPlayer: (id: string) => void;
 }) {
   const c = contestantById(id);
   const owners = ownersOf(id);
@@ -1021,6 +1057,7 @@ function PlayerBody({
     wins ? `${wins} ${wins === 1 ? "challenge win" : "challenge wins"}` : "",
     idols ? `${idols} ${idols === 1 ? "idol" : "idols"}` : "",
   ].filter(Boolean);
+  const votes = votingRecord(id, now);
 
   return (
     <div>
@@ -1048,6 +1085,51 @@ function PlayerBody({
           {pickPoints(c, now) != null ? ` · ${pickPoints(c, now)} points` : ""}
         </p>
       )}
+      <h3 className="mt-5 text-xs font-semibold tracking-widest text-muted">VOTES</h3>
+      {votes.length === 0 && <p className="mt-2 text-sm text-muted">No public vote yet. A tribal stays hidden until 11pm Pacific.</p>}
+      <ul className="mt-2 flex flex-col gap-2">
+        {votes.map((row) => {
+          const target = row.mine?.for ? contestantById(row.mine.for) : null;
+          const note =
+            row.mine?.note === "shot"
+              ? "Shot in the Dark. Not safe, so no vote."
+              : row.mine?.note === "exile"
+                ? "Exiled. Did not vote."
+                : null;
+          return (
+            <li key={row.tribal.day} className="rounded-xl bg-surface-2 px-3 py-3 text-sm">
+              <p className="text-xs font-semibold tracking-widest text-muted">
+                DAY {row.tribal.day} · {row.tribal.tribe === "savu" ? "SAVU" : "TOKA"} · {row.tribal.tally}
+              </p>
+              {note && <p className="mt-1">{note}</p>}
+              {target && (
+                <p className="mt-1">
+                  Voted{" "}
+                  <button type="button" onClick={() => onOpenPlayer(target.id)} className="font-semibold text-toka">
+                    {target.first}
+                  </button>
+                </p>
+              )}
+              {row.against.length > 0 && (
+                <p className="mt-1 text-boot">
+                  {row.against.length} {row.against.length === 1 ? "vote" : "votes"} from{" "}
+                  {row.against.map((voterId, index) => {
+                    const voter = contestantById(voterId);
+                    return (
+                      <span key={voterId}>
+                        {index > 0 ? ", " : ""}
+                        <button type="button" onClick={() => onOpenPlayer(voterId)} className="font-semibold">
+                          {voter.first}
+                        </button>
+                      </span>
+                    );
+                  })}
+                </p>
+              )}
+            </li>
+          );
+        })}
+      </ul>
       <h3 className="mt-5 text-xs font-semibold tracking-widest text-muted">
         {owners.length === 0 ? "UNDRAFTED" : `DRAFTED BY ${owners.length}`}
       </h3>

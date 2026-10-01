@@ -380,6 +380,76 @@ export function bonusOf(c: Contestant): number {
   return idolCount(c) + winCount(c);
 }
 
+export type TribalVote = {
+  voter: string;
+  for: string | null;
+  note?: "shot" | "exile";
+};
+
+export type Tribal = {
+  day: number;
+  tribe: "savu" | "toka";
+  boot: string;
+  tally: string;
+  revealAt?: string;
+  votes: TribalVote[];
+};
+
+/** Hidden until 11:00 PM Pacific, same as the boot they decide. */
+export const tribals: Tribal[] = [
+  {
+    day: 3,
+    tribe: "toka",
+    boot: "aaliyah",
+    tally: "6–2",
+    votes: [
+      { voter: "brady", for: "aaliyah" },
+      { voter: "kilby", for: "aaliyah" },
+      { voter: "maggie", for: "aaliyah" },
+      { voter: "mike", for: "aaliyah" },
+      { voter: "patt", for: "aaliyah" },
+      { voter: "thien-an", for: "aaliyah" },
+      { voter: "devin", for: "jenna" },
+      { voter: "jelly", for: "jenna" },
+      { voter: "aaliyah", for: null, note: "shot" },
+      { voter: "jenna", for: null, note: "shot" },
+      { voter: "lewis", for: null, note: "exile" },
+    ],
+  },
+  {
+    day: 5,
+    tribe: "savu",
+    boot: "ana",
+    tally: "6–4",
+    revealAt: "2026-10-01T06:00:00.000Z",
+    votes: [
+      { voter: "alexis", for: "ana" },
+      { voter: "cristian", for: "ana" },
+      { voter: "eric", for: "ana" },
+      { voter: "kristin", for: "ana" },
+      { voter: "linnea", for: "ana" },
+      { voter: "sharonda", for: "ana" },
+      { voter: "ana", for: "eric" },
+      { voter: "carter", for: "eric" },
+      { voter: "ori", for: "eric" },
+      { voter: "rob", for: "eric" },
+    ],
+  },
+];
+
+export function visibleTribals(now = Date.now()): Tribal[] {
+  return tribals.filter((tribal) => released(tribal.revealAt, now));
+}
+
+export function votingRecord(id: string, now = Date.now()) {
+  return visibleTribals(now).flatMap((tribal) => {
+    const mine = tribal.votes.find((vote) => vote.voter === id);
+    const against = tribal.votes.filter((vote) => vote.for === id).map((vote) => vote.voter);
+    if (!mine && against.length === 0) return [];
+    return [{ tribal, mine, against }];
+  });
+}
+
 export function ownersOf(contestantId: string): Manager[] {
   return managers.filter((m) => m.picks.includes(contestantId));
 }

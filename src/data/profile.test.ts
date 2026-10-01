@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { CustomLeague } from "./custom-leagues.ts";
-import { profileLines } from "./profile.ts";
+import { profileLines } from "./profile-lines.ts";
 
 test("a profile collects past seasons and a custom league under one name", () => {
   const leagues: CustomLeague[] = [

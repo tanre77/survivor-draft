@@ -28,7 +28,8 @@ function hasGlobbedMigrations(root: string): boolean {
  *
  * Vite awaiting the hook puts this on time-to-first-render, so an app with no
  * migrations — no schema to apply — skips it entirely rather than paying for a
- * PGLite instance it never queries.
+ * PGLite instance it never queries. When migrations exist, bootstrap starts
+ * here but is not awaited: the first screen must not wait on WASM.
  */
 function pgliteBootstrapPlugin(): Plugin {
   return {
@@ -36,17 +37,18 @@ function pgliteBootstrapPlugin(): Plugin {
     apply: "serve",
     async configureServer(server) {
       if (!hasGlobbedMigrations(server.config.root)) return;
-      try {
-        const mod = (await server.ssrLoadModule("/src/lib/db.ts")) as {
-          ensureDbReady?: () => Promise<void>;
-        };
-        if (typeof mod.ensureDbReady === "function") {
-          await mod.ensureDbReady();
-        }
-      } catch (err) {
-        console.error("[app-builder] DB bootstrap failed:", err);
-        throw err;
-      }
+      // Kick PGLite off, but do not await it. Vite waits on this hook, and a
+      // WASM database on the critical path is why the first screen sits blank.
+      // Queries still share ensureDbReady, so they wait only if they need SQL.
+      void server
+        .ssrLoadModule("/src/lib/db.ts")
+        .then((mod) => {
+          const ready = (mod as { ensureDbReady?: () => Promise<void> }).ensureDbReady;
+          return typeof ready === "function" ? ready() : undefined;
+        })
+        .catch((err) => {
+          console.error("[app-builder] DB bootstrap failed:", err);
+        });
     },
   };
 }

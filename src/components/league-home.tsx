@@ -1,10 +1,8 @@
 import { useState, type FormEvent } from "react";
-import { pastSeasons } from "@/data/history";
 import { eraseCustomLeagues, lastDrafter, matchupWinner, newId, nextDrafter, pairSeats, rosterKey, seatColors, takenBy, type CustomLeague, type CustomSeat } from "@/data/custom-leagues";
 import { eraseProfile } from "@/data/profile";
 import { SEAT_KEY, bonusOf, contestantByName, idolCount, isBootPublic, pickPoints, winCount } from "@/data/league";
 import { LeagueChat } from "@/components/league-chat";
-import { totalRank } from "@/data/stats";
 
 export function LeagueHome({
   leagues,
@@ -156,30 +154,13 @@ export function LeagueHome({
   );
 }
 
-export function FinishedSeasons({ onOpen }: { onOpen: (id: string) => void }) {
-  return (
-    <div>
-      <p className="text-xs font-semibold tracking-widest text-muted">ON THE SHEET</p>
-      <h1 className="mt-1 font-display text-5xl leading-none">Past seasons</h1>
-      <ul className="mt-4 flex flex-col gap-2">
-        {pastSeasons.map((season) => {
-          const winner = season.standings[0];
-          return (
-            <li key={season.id}>
-              <button type="button" onClick={() => onOpen(season.id)} className="w-full rounded-2xl bg-surface px-4 py-3 text-left">
-                <span className="block text-xs font-semibold tracking-widest text-muted">FINISHED</span>
-                <span className="block font-display text-3xl leading-none">Season {season.season}</span>
-                <span className="mt-1 block text-sm text-muted">
-                  {winner.name} won · {winner.total}
-                  {winner.prize ? ` · ${winner.prize}` : ""}
-                </span>
-              </button>
-            </li>
-          );
-        })}
-      </ul>
-    </div>
-  );
+function seatTotalRank(total: string | undefined): number {
+  if (!total) return Number.POSITIVE_INFINITY;
+  const match = total.match(/-?\d+(?:\.\d+)?/);
+  if (!match) return Number.POSITIVE_INFINITY;
+  const value = Number(match[0]);
+  const mark = total.includes("+") ? -0.2 : /[−-]/.test(total) ? 0.2 : 0;
+  return value + mark;
 }
 
 export function CreateLeague({
@@ -433,7 +414,7 @@ export function CustomBoard({
 
   const ranked = [...league.seats].sort((a, b) => {
     if (a.place != null && b.place != null) return a.place - b.place;
-    return totalRank(a.total) - totalRank(b.total);
+    return seatTotalRank(a.total) - seatTotalRank(b.total);
   });
   const scored = league.seats.some((seat) => seat.scores != null && seat.scores.length > 0);
   const clock = league.drafting && !scored ? nextDrafter(league.seats) : null;

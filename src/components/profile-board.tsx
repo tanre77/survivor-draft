@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { CustomLeague } from "@/data/custom-leagues";
-import { loadProfile, profileLines, saveProfile } from "@/data/profile";
+import { loadProfile, saveProfile } from "@/data/profile";
+import { profileLines } from "@/data/profile-lines";
 
 export function ProfileBoard({ leagues, onName }: { leagues: CustomLeague[]; onName: (name: string) => void }) {
   const [name, setName] = useState(() => loadProfile().name);
