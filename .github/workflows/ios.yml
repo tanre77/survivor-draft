@@ -1,0 +1,19 @@
+name: ios
+on:
+  workflow_dispatch:
+jobs:
+  xcode:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run board
+      - run: brew install xcodegen
+      - run: xcodegen generate
+        working-directory: ios
+      - run: xcodebuild -scheme SurvivorDraft -destination 'platform=iOS Simulator,name=iPhone 16' test
+        working-directory: ios

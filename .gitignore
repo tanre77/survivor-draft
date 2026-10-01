@@ -9,3 +9,8 @@ screenshots
 .grok
 *.log
 .DS_Store
+android/node_modules
+ios/*.xcodeproj
+ios/DerivedData
+google-services.json
+GoogleService-Info.plist

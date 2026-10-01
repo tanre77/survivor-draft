@@ -1,0 +1,27 @@
+plugins {
+    id "com.android.application"
+}
+
+// Crashlytics and the Google services plugin stay commented out until
+// android/app/google-services.json from the real Firebase project is present.
+// id "com.google.gms.google-services"
+// id "com.google.firebase.crashlytics"
+
+android {
+    namespace "com.tanre77.survivordraft"
+    compileSdk 36
+    defaultConfig {
+        applicationId "com.tanre77.survivordraft"
+        minSdk 24
+        targetSdk 36
+        versionCode 1
+        versionName "1.0"
+    }
+    buildTypes {
+        release {
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
+        }
+    }
+}
