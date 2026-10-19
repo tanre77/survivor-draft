@@ -41,10 +41,13 @@ enum Scoring {
         return juryCount + (place - juryCount) * 2
     }
 
-    /// Early boots are worth the most. The sole survivor is 1. A quit or medevac is 0.
+    /// Early boots are worth the most. The sole survivor is 1. A quit with a finish place uses that place. A quit or medevac with no place is 0.
     static func finishPoints(_ boot: String?, castSize: Int, advanced: Bool = false) -> Int? {
         guard let boot else { return nil }
         let text = boot.lowercased()
+        if text.range(of: #"\d+(?:st|nd|rd|th) place"#, options: .regularExpression) != nil, let n = place(boot) {
+            return max(0, points(forPlace: n, castSize: castSize, advanced: advanced))
+        }
         if text.contains("quit") || text.contains("medevac") || text.contains("medical") || text.contains("evacuat") {
             return 0
         }

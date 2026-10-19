@@ -1,4 +1,4 @@
-import { createContext, lazy, Suspense, useContext, useEffect, useId, useMemo, useState, type ReactNode } from "react";
+import { createContext, lazy, Suspense, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { BarChart3, ChevronLeft, ChevronRight, Gem, LayoutGrid, ScrollText, Search, Trophy, UserRound, Users, X } from "lucide-react";
 import { reportError, startDiagnostics } from "@/lib/diagnostics";
 import { CreateLeague, CustomBoard, CustomTeam, LeagueHome } from "@/components/league-home";
@@ -6,6 +6,7 @@ import { lastDrafter, loadCustomLeagues, newId, nextDrafter, rosterKey, saveCust
 import type { ImportedSheet } from "@/data/import-sheet";
 import { loadProfile, saveProfile } from "@/data/profile";
 import { deleteSharedLeague, fetchSharedLeague, normalizeCode, publishSharedLeague, saveSharedLeague, type SharedLeague } from "@/lib/shared-leagues";
+import { alreadyPinged, markPinged, pingTurn, sameName } from "@/lib/turn-alert";
 import {
   SEAT_KEY,
   contestantBlob,
@@ -30,7 +31,7 @@ import {
   type Manager,
 } from "@/data/league";
 
-type CastFilter = "all" | "savu" | "toka" | "in" | "out" | "mine";
+type CastFilter = "all" | "savu" | "toka" | "dina" | "in" | "out" | "mine";
 type Tab = "league" | "cards" | "mine" | "past" | "rules" | "stats";
 
 const StatsBoard = lazy(() => import("@/components/stats-board").then((mod) => ({ default: mod.StatsBoard })));
@@ -65,6 +66,7 @@ const FILTERS: { id: CastFilter; label: string }[] = [
   { id: "all", label: "All" },
   { id: "savu", label: "Savu" },
   { id: "toka", label: "Toka" },
+  { id: "dina", label: "Dina" },
   { id: "in", label: "Still in" },
   { id: "out", label: "Out" },
   { id: "mine", label: "Yours" },
@@ -86,6 +88,9 @@ export function DraftLeague() {
   const [filter, setFilter] = useState<CastFilter>("all");
   const [stack, setStack] = useState<Panel[]>([]);
   const [now, setNow] = useState(() => Date.now());
+  const leaguesRef = useRef(leagues);
+  leaguesRef.current = leagues;
+  const saveFlight = useRef(0);
 
   useEffect(() => {
     const saved = localStorage.getItem(SEAT_KEY);
@@ -108,22 +113,77 @@ export function DraftLeague() {
     if (ready) saveCustomLeagues(leagues);
   }, [leagues, ready]);
 
+  function applyShared(shared: SharedLeague) {
+    setLeagues((list) => {
+      const existing = list.find((item) => item.code === shared.code || item.id === shared.code);
+      const id = existing?.id ?? shared.code;
+      const next: CustomLeague = {
+        id,
+        name: shared.name,
+        bonus: shared.bonus,
+        trades: shared.trades,
+        drafting: shared.drafting,
+        advanced: shared.advanced,
+        headToHead: shared.headToHead,
+        seats: shared.seats,
+        code: shared.code,
+      };
+      if (!existing) return [next, ...list];
+      const localMade = existing.seats.reduce((sum, seat) => sum + seat.picks.length, 0);
+      const remoteMade = shared.seats.reduce((sum, seat) => sum + seat.picks.length, 0);
+      if (localMade > remoteMade) return list;
+      if (
+        existing.name === next.name &&
+        existing.bonus === next.bonus &&
+        existing.trades === next.trades &&
+        existing.drafting === next.drafting &&
+        existing.advanced === next.advanced &&
+        existing.headToHead === next.headToHead &&
+        JSON.stringify(existing.seats) === JSON.stringify(next.seats)
+      ) {
+        return list;
+      }
+      return list.map((item) => (item.id === id ? next : item));
+    });
+  }
+
   useEffect(() => {
-    if (place.view !== "custom") return;
-    const league = leagues.find((item) => item.id === place.id);
-    if (!league?.code) return;
-    let cancel = false;
-    fetchSharedLeague({ data: league.code })
-      .then((shared) => {
-        if (!cancel && shared) storeShared(shared);
-      })
-      .catch(() => undefined);
+    if (!ready) return;
+    let stop = false;
+    async function tick() {
+      if (stop || document.visibilityState === "hidden") return;
+      const open = leaguesRef.current.filter(
+        (league) => league.code && league.drafting !== false && !league.seats.some((seat) => seat.scores != null && seat.scores.length > 0),
+      );
+      await Promise.all(
+        open.map(async (league) => {
+          const shared = await fetchSharedLeague({ data: league.code ?? "" }).catch(() => null);
+          if (!shared || stop || saveFlight.current > 0) return;
+          applyShared(shared);
+        }),
+      );
+    }
+    void tick();
+    const id = window.setInterval(() => void tick(), 4000);
     return () => {
-      cancel = true;
+      stop = true;
+      window.clearInterval(id);
     };
-    // Refresh when the league is opened, not on every local edit.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [place]);
+  }, [ready]);
+
+  useEffect(() => {
+    if (!ready || !profileName.trim()) return;
+    for (const league of leagues) {
+      if (!league.code || league.drafting === false) continue;
+      if (league.seats.some((seat) => seat.scores != null && seat.scores.length > 0)) continue;
+      const clock = nextDrafter(league.seats);
+      if (!clock || !sameName(clock.name, profileName)) continue;
+      const key = `${league.code}:${league.seats.reduce((sum, seat) => sum + seat.picks.length, 0)}`;
+      if (alreadyPinged(key)) continue;
+      markPinged(key);
+      pingTurn(league.name, `${clock.name}, you're on the clock.`);
+    }
+  }, [leagues, profileName, ready]);
 
   useEffect(() => {
     const next = contestants
@@ -189,6 +249,7 @@ export function DraftLeague() {
   function updateLeague(next: CustomLeague) {
     setLeagues((list) => list.map((league) => (league.id === next.id ? next : league)));
     if (!next.code) return;
+    const flight = ++saveFlight.current;
     void saveSharedLeague({
       data: {
         code: next.code,
@@ -200,7 +261,14 @@ export function DraftLeague() {
         headToHead: next.headToHead,
         seats: next.seats,
       },
-    }).catch(() => undefined);
+    })
+      .then((shared) => {
+        if (saveFlight.current === flight) applyShared(shared);
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (saveFlight.current === flight) saveFlight.current = 0;
+      });
   }
 
   function storeShared(shared: SharedLeague) {
@@ -247,10 +315,29 @@ export function DraftLeague() {
           : place.view === "custom" && customSeat
             ? "League"
             : "Leagues";
+  const turnCall = leagues.flatMap((league) => {
+    if (league.drafting === false) return [];
+    if (league.seats.some((seat) => seat.scores != null && seat.scores.length > 0)) return [];
+    const clock = nextDrafter(league.seats);
+    if (!clock || !sameName(clock.name, profileName)) return [];
+    return [{ id: league.id, league: league.name, seatId: clock.id, who: clock.name }];
+  })[0];
 
   return (
     <ClockContext.Provider value={now}>
-    <div className="flex h-dvh flex-col overflow-hidden bg-bg text-fg">
+    <div className="flex h-full flex-col overflow-hidden bg-bg text-fg">
+      {turnCall && (
+        <button
+          type="button"
+          onClick={() => {
+            setCustomSeat(turnCall.seatId);
+            setPlace({ view: "custom", id: turnCall.id });
+          }}
+          className="shrink-0 bg-ember px-4 py-3 text-left text-sm font-semibold text-ember-ink"
+        >
+          {turnCall.who}, you're on the clock in {turnCall.league}.
+        </button>
+      )}
       {place.view !== "home" && place.view !== "make" && place.view !== "import" && (
         <header className="safe-top z-20 shrink-0 border-b border-line bg-bg/95">
           <div className="mx-auto flex max-w-5xl items-end justify-between gap-3 px-4 pt-3 pb-3">
@@ -464,6 +551,7 @@ export function DraftLeague() {
             bonus={custom?.bonus === true}
             drafting={custom?.drafting !== false}
             trades={custom?.trades === true}
+            canDraft={!custom?.seats.some((seat) => sameName(seat.name, profileName)) || sameName(customPerson.name, profileName)}
             onChange={(picks) => {
               if (!custom || !custom.drafting) return;
               const adding = picks.length > customPerson.picks.length;
@@ -621,7 +709,7 @@ function importedLeagues(existing: CustomLeague[], sheets: ImportedSheet[]): Cus
 
 function Gate({ onPick, onCancel }: { onPick: (id: string) => void; onCancel?: () => void }) {
   return (
-    <main className="safe-top mx-auto flex min-h-dvh max-w-3xl flex-col bg-bg px-4 pb-10 text-fg">
+    <main className="safe-top mx-auto flex max-w-3xl flex-col bg-bg px-4 pb-10 text-fg">
       <header className="pt-8">
         <p className="text-xs font-semibold tracking-widest text-muted">SURVIVOR 51 DRAFT</p>
         <h1 className="mt-2 font-display text-6xl leading-none">
@@ -830,7 +918,7 @@ function CardBoard({
   const now = useNow();
   const cards = contestants.filter((c) => {
     if (q && !contestantBlob(c).includes(q)) return false;
-    if (filter === "savu" || filter === "toka") return c.tribe === filter;
+    if (filter === "savu" || filter === "toka" || filter === "dina") return c.tribe === filter;
     if (filter === "in") return !isBootPublic(c, now);
     if (filter === "out") return isBootPublic(c, now);
     if (filter === "mine") return pickIndex(seat, c.id) >= 0;
@@ -1099,7 +1187,7 @@ function PlayerBody({
           return (
             <li key={row.tribal.day} className="rounded-xl bg-surface-2 px-3 py-3 text-sm">
               <p className="text-xs font-semibold tracking-widest text-muted">
-                DAY {row.tribal.day} · {row.tribal.tribe === "savu" ? "SAVU" : "TOKA"} · {row.tribal.tally}
+                DAY {row.tribal.day} · {row.tribal.tribe.toUpperCase()} · {row.tribal.tally}
               </p>
               {note && <p className="mt-1">{note}</p>}
               {target && (
@@ -1257,14 +1345,16 @@ function GameStats({ onOpenPlayer }: { onOpenPlayer: (id: string) => void }) {
 }
 
 function TribePill({ tribe }: { tribe: Contestant["tribe"] }) {
-  const savu = tribe === "savu";
+  const label = tribe.toUpperCase();
+  const tone =
+    tribe === "savu"
+      ? "bg-savu text-savu-ink"
+      : tribe === "dina"
+        ? "bg-dina text-dina-ink"
+        : "bg-toka text-toka-ink";
   return (
-    <span
-      className={`mt-2 inline-flex rounded-full px-2 py-0.5 text-xs font-semibold tracking-widest ${
-        savu ? "bg-savu text-savu-ink" : "bg-toka text-toka-ink"
-      }`}
-    >
-      {savu ? "SAVU" : "TOKA"}
+    <span className={`mt-2 inline-flex rounded-full px-2 py-0.5 text-xs font-semibold tracking-widest ${tone}`}>
+      {label}
     </span>
   );
 }
@@ -1296,6 +1386,7 @@ function chipClass(id: CastFilter, on: boolean): string {
   if (!on) return "bg-surface-2 text-fg";
   if (id === "savu") return "bg-savu text-savu-ink";
   if (id === "toka") return "bg-toka text-toka-ink";
+  if (id === "dina") return "bg-dina text-dina-ink";
   if (id === "out" || id === "mine") return "bg-ember text-ember-ink";
   return "bg-fg text-bg";
 }

@@ -15,6 +15,8 @@
   --color-savu-ink: #f6efff;
   --color-toka: #e2b340;
   --color-toka-ink: #2a2108;
+  --color-dina: #d1006b;
+  --color-dina-ink: #fff5fa;
   --color-ember: #e25b2a;
   --color-ember-ink: #fff6f1;
   --color-boot: #e10600;
@@ -27,12 +29,15 @@
   html {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    height: 100%;
   }
   body {
     background: var(--color-bg);
     color: var(--color-fg);
     font-family: var(--font-sans);
     text-wrap: pretty;
+    height: 100%;
+    overflow: auto;
   }
   button:not(:disabled),
   [role="button"]:not(:disabled) {

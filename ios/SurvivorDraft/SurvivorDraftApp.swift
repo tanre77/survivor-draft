@@ -41,8 +41,12 @@ struct BoardView: View {
         BoardData.contestants.filter { Scoring.isBootPublic($0) }
     }
 
+    private var ranked: [Manager] {
+        BoardData.managers.sorted { seatTotal($0) < seatTotal($1) }
+    }
+
     var body: some View {
-        List(BoardData.managers) { manager in
+        List(ranked) { manager in
             NavigationLink {
                 TeamView(manager: manager)
             } label: {
@@ -57,6 +61,10 @@ struct BoardView: View {
                             .font(.caption)
                             .lineLimit(1)
                     }
+                    Spacer()
+                    Text("\(seatTotal(manager))")
+                        .font(.title3.monospacedDigit().weight(.semibold))
+                        .foregroundStyle(Color(red: 0.89, green: 0.70, blue: 0.25))
                 }
             }
         }
@@ -84,6 +92,14 @@ struct BoardView: View {
             return line + Text(" · ").foregroundStyle(.secondary) + piece
         }
     }
+
+    private func seatTotal(_ manager: Manager) -> Int {
+        manager.picks.reduce(0) { sum, id in
+            guard let contestant = BoardData.contestants.first(where: { $0.id == id }),
+                  let points = Scoring.score(contestant, bonusOn: false) else { return sum }
+            return sum + points
+        }
+    }
 }
 
 struct TeamView: View {
@@ -99,8 +115,13 @@ struct TeamView: View {
                         Text(contestant.boot ?? "Voted out")
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(Color.boot)
+                        if let points = Scoring.score(contestant, bonusOn: false) {
+                            Text("\(points) points")
+                                .font(.caption.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                        }
                     } else {
-                        Text(contestant.tribe == "savu" ? "Savu" : "Toka")
+                        Text(tribeLabel(contestant.tribe))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -109,6 +130,14 @@ struct TeamView: View {
             }
         }
         .navigationTitle(manager.name)
+    }
+
+    private func tribeLabel(_ tribe: String) -> String {
+        switch tribe {
+        case "savu": return "Savu"
+        case "dina": return "Dina"
+        default: return "Toka"
+        }
     }
 }
 

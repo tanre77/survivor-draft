@@ -38,6 +38,8 @@ function pointsForPlace(place: number, castSize: number, advanced: boolean): num
 function finishPoints(boot: string | null | undefined, castSize: number, advanced = false): number | null {
   if (!boot) return null;
   const text = boot.toLowerCase();
+  const placed = text.match(/(\d+)(?:st|nd|rd|th) place/);
+  if (placed) return Math.max(0, pointsForPlace(Number(placed[1]), castSize, advanced));
   if (/quit|medevac|medical|evacuat/.test(text)) return 0;
   if (/sole survivor|\bwinner\b/.test(text)) return 1;
   if (/runner-?up/.test(text)) return pointsForPlace(2, castSize, advanced);

@@ -27,6 +27,7 @@ test("standard scoring ignores the jury line and advanced scoring does not", () 
   assert.equal(finishPoints("7th voted out", cast, true), 15);
   assert.equal(finishPoints("Sole Survivor", cast, true), 1);
   assert.equal(finishPoints("Medevac · Day 4", cast, true), 0);
+  assert.equal(finishPoints("19th place · Quit · Day 6", cast, false), 19);
   assert.equal(scoreOf(byId.get("aaliyah"), board.bonuses, before, false, cast), cast);
   assert.equal(scoreOf(byId.get("aaliyah"), board.bonuses, before, false, cast, true), 27);
 });

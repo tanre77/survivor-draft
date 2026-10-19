@@ -1,8 +1,9 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { eraseCustomLeagues, lastDrafter, matchupWinner, newId, nextDrafter, pairSeats, rosterKey, seatColors, takenBy, type CustomLeague, type CustomSeat } from "@/data/custom-leagues";
 import { eraseProfile } from "@/data/profile";
-import { SEAT_KEY, bonusOf, contestantByName, idolCount, isBootPublic, pickPoints, winCount } from "@/data/league";
+import { SEAT_KEY, bonusOf, contestantByName, contestants, displayName, idolCount, isBootPublic, photoSrc, pickPoints, winCount, type Contestant } from "@/data/league";
 import { LeagueChat } from "@/components/league-chat";
+import { alertsGranted, armTurnAlerts, sameName } from "@/lib/turn-alert";
 
 export function LeagueHome({
   leagues,
@@ -39,6 +40,7 @@ export function LeagueHome({
 
   async function join(event: FormEvent) {
     event.preventDefault();
+    void armTurnAlerts();
     const name = (profileName || joinName).trim();
     if (!name) {
       setJoinError("Put your name in first.");
@@ -107,21 +109,26 @@ export function LeagueHome({
             <span className="mt-1 block text-sm text-muted">23 seats · Fiji</span>
           </button>
         </li>
-        {leagues.map((league) => (
+        {leagues.map((league) => {
+          const scoredSheet = league.seats.some((seat) => seat.scores != null && seat.scores.length > 0);
+          const clock = !scoredSheet && league.drafting !== false ? nextDrafter(league.seats) : null;
+          const yours = Boolean(clock && sameName(clock.name, profileName));
+          return (
           <li key={league.id}>
             <button type="button" onClick={() => onOpenCustom(league.id)} className="w-full rounded-2xl bg-surface px-4 py-4 text-left">
-              <span className="text-xs font-semibold tracking-widest text-toka">
-                {league.seats.some((seat) => seat.scores != null && seat.scores.length > 0) ? "SCORED" : "IN PROGRESS"}
+              <span className={`text-xs font-semibold tracking-widest ${yours ? "text-ember" : "text-toka"}`}>
+                {yours ? "YOUR TURN" : scoredSheet ? "SCORED" : "IN PROGRESS"}
               </span>
               <span className="mt-1 block font-display text-4xl leading-none">{league.name}</span>
               <span className="mt-1 block text-sm text-muted">
-                {league.seats.length} {league.seats.length === 1 ? "person" : "people"}
+                {yours ? `${clock?.name} is on the clock` : `${league.seats.length} ${league.seats.length === 1 ? "person" : "people"}`}
                 {league.trades ? " · trades" : ""}
                 {league.bonus ? " · bonus" : ""}
               </span>
             </button>
           </li>
-        ))}
+          );
+        })}
       </ul>
 
       <div className="mt-8 rounded-2xl bg-surface px-4 py-4">
@@ -335,6 +342,7 @@ export function CreateLeague({
         type="button"
         disabled={!ready && !(you && name.trim())}
         onClick={() => {
+          void armTurnAlerts();
           const names = you && !people.some((person) => person.toLowerCase() === you.toLowerCase()) ? [you, ...people] : people;
           if (!name.trim() || names.length === 0) return;
           onCreate({
@@ -400,6 +408,11 @@ export function CustomBoard({
   const [armed, setArmed] = useState(false);
   const [closing, setClosing] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [alertsOn, setAlertsOn] = useState(false);
+
+  useEffect(() => {
+    setAlertsOn(alertsGranted());
+  }, []);
 
   function add() {
     const next = draft.trim();
@@ -466,6 +479,16 @@ export function CustomBoard({
           Make an invite code
         </button>
       )}
+      <button
+        type="button"
+        onClick={() => {
+          void armTurnAlerts().then(setAlertsOn);
+        }}
+        className="mt-3 min-h-12 w-full rounded-2xl bg-surface px-4 text-sm font-semibold"
+      >
+        {alertsOn ? "You'll get an alert on your turn" : "Alert me on my turn"}
+      </button>
+      {!you && <p className="mt-2 text-sm text-muted">Save your name on the You tab. The alert matches that name to a seat.</p>}
       {league.drafting && !scored && league.seats.length > 1 && (
         <section className="mt-4 rounded-2xl bg-surface p-4">
           <div className="flex items-center justify-between gap-3">
@@ -611,6 +634,7 @@ export function CustomTeam({
   bonus,
   drafting,
   trades,
+  canDraft = true,
   onChange,
   onTrade,
 }: {
@@ -619,10 +643,10 @@ export function CustomTeam({
   bonus: boolean;
   drafting: boolean;
   trades: boolean;
+  canDraft?: boolean;
   onChange: (picks: string[]) => void;
   onTrade: (myIndex: number, otherId: string, theirIndex: number) => void;
 }) {
-  const [draft, setDraft] = useState("");
   const [deal, setDeal] = useState<{ mine: number; otherId: string | null } | null>(null);
   const [blocked, setBlocked] = useState("");
   const scored = bonus
@@ -636,13 +660,17 @@ export function CustomTeam({
   const partner = deal?.otherId ? seats.find((other) => other.id === deal.otherId) : undefined;
   const canTrade = drafting && trades;
   const clock = drafting ? nextDrafter(seats) : null;
-  const myTurn = !clock || clock.id === seat.id;
+  const clockMine = !clock || clock.id === seat.id;
+  const myTurn = Boolean(drafting && clockMine && canDraft);
   const canUndo = lastDrafter(seats)?.id === seat.id;
 
-  function add() {
-    const next = draft.trim();
-    if (!next || !drafting || !myTurn) return;
-    const picks = [...seat.picks, next];
+  function onTeam(player: Contestant): boolean {
+    return seat.picks.some((pick) => contestantByName(pick)?.id === player.id);
+  }
+
+  function add(player: Contestant) {
+    if (!drafting || !myTurn || onTeam(player)) return;
+    const picks = [...seat.picks, displayName(player)];
     const owner = takenBy(seats, picks, [seat.id]);
     if (owner) {
       setBlocked(`${owner} already has that exact team.`);
@@ -650,7 +678,6 @@ export function CustomTeam({
     }
     setBlocked("");
     onChange(picks);
-    setDraft("");
   }
 
   return (
@@ -660,7 +687,10 @@ export function CustomTeam({
       {bonus && <p className="mt-2 text-sm text-toka">Bonus −{teamBonus} off the score</p>}
       {!drafting && <p className="mt-2 text-sm text-muted">The draft is closed.</p>}
       {drafting && !trades && <p className="mt-2 text-sm text-muted">Trades are off for this league.</p>}
-      {drafting && !myTurn && clock && <p className="mt-2 text-sm text-muted">Waiting on {clock.name}. The draft snakes, so the last pick of a round goes first in the next.</p>}
+      {drafting && clockMine && !canDraft && (
+        <p className="mt-2 text-sm text-muted">This pick belongs to {seat.name}. Your phone only drafts the seat that matches your name.</p>
+      )}
+      {drafting && !clockMine && clock && <p className="mt-2 text-sm text-muted">Waiting on {clock.name}. The draft snakes, so the last pick of a round goes first in the next.</p>}
       {drafting && myTurn && <p className="mt-2 text-sm font-semibold text-toka">You're on the clock.</p>}
       {drafting && <p className="mt-2 text-sm text-muted">No two seats can draft the same exact team.</p>}
       {blocked && <p className="mt-2 text-sm font-semibold text-boot">{blocked}</p>}
@@ -679,15 +709,26 @@ export function CustomTeam({
             .filter(Boolean)
             .join(" · ");
           return (
-            <li key={`${pick}-${pickIndex}`} className="flex items-center justify-between gap-3 rounded-2xl bg-surface px-4 py-3">
-              <span>
-                <span className="block text-xs font-semibold tracking-widest text-muted">PICK {pickIndex + 1}</span>
-                <span className={`text-base font-semibold ${out ? "text-boot" : ""}`}>{pick}</span>
-                {bonus && player && points > 0 && (
-                  <span className="mt-1 block text-sm text-toka">
-                    {detail} · −{points}
-                  </span>
+            <li key={`${pick}-${pickIndex}`} className="flex items-center justify-between gap-3 rounded-2xl bg-surface px-3 py-2">
+              <span className="flex min-w-0 items-center gap-3">
+                {player && (
+                  <img
+                    src={photoSrc(player.id)}
+                    alt=""
+                    width={48}
+                    height={64}
+                    className="h-16 w-12 shrink-0 rounded-lg object-cover"
+                  />
                 )}
+                <span className="min-w-0">
+                  <span className="block text-xs font-semibold tracking-widest text-muted">PICK {pickIndex + 1}</span>
+                  <span className={`block truncate text-base font-semibold ${out ? "text-boot" : ""}`}>{player ? displayName(player) : pick}</span>
+                  {bonus && player && points > 0 && (
+                    <span className="mt-1 block text-sm text-toka">
+                      {detail} · −{points}
+                    </span>
+                  )}
+                </span>
               </span>
               <span className="flex shrink-0 items-center gap-3">
                 {seat.scores?.[pickIndex] != null && (
@@ -769,26 +810,38 @@ export function CustomTeam({
         </div>
       )}
       {drafting && myTurn && (
-      <label className="mt-4 block text-sm font-semibold">
-        Add a pick
-        <span className="mt-1 flex gap-2">
-          <input
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                add();
-              }
-            }}
-            className="min-w-0 flex-1 rounded-xl bg-surface-2 px-3 py-3 text-base font-normal"
-            autoComplete="off"
-          />
-          <button type="button" onClick={add} className="min-h-12 rounded-xl bg-ember px-4 text-base font-semibold text-ember-ink">
-            Add
-          </button>
-        </span>
-      </label>
+        <section className="mt-5">
+          <h2 className="text-xs font-semibold tracking-widest text-muted">THE CAST</h2>
+          <p className="mt-1 text-sm text-muted">Tap a player to draft them.</p>
+          <ul className="mt-3 grid grid-cols-3 gap-2">
+            {contestants.map((player) => {
+              const mine = onTeam(player);
+              const out = isBootPublic(player);
+              return (
+                <li key={player.id}>
+                  <button
+                    type="button"
+                    disabled={mine}
+                    onClick={() => add(player)}
+                    className="w-full overflow-hidden rounded-xl bg-surface text-left disabled:opacity-40"
+                  >
+                    <img
+                      src={photoSrc(player.id)}
+                      alt=""
+                      width={160}
+                      height={214}
+                      className={`aspect-[3/4] w-full object-cover ${out ? "opacity-70" : ""}`}
+                    />
+                    <span className={`block px-2 py-2 text-sm font-semibold leading-tight ${out ? "text-boot" : ""}`}>
+                      {player.first}
+                      {mine ? <span className="mt-0.5 block text-xs font-semibold text-muted">On your team</span> : null}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
       )}
     </div>
   );

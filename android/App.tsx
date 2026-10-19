@@ -15,6 +15,18 @@ export default function App() {
     () => [...board.contestants].reverse().find((row) => isBootPublic(row, now)),
     [now],
   );
+  const ranked = useMemo(() => {
+    return board.managers
+      .map((manager) => ({
+        manager,
+        total: manager.picks.reduce((sum, id) => {
+          const row = contestant(id);
+          const points = row ? scoreOf(row, false, now) : null;
+          return points == null ? sum : sum + points;
+        }, 0),
+      }))
+      .sort((a, b) => a.total - b.total || a.manager.name.localeCompare(b.manager.name));
+  }, [now]);
 
   if (screen.name === "privacy") {
     return (
@@ -44,10 +56,12 @@ export default function App() {
           const player = contestant(id);
           if (!player) return null;
           const out = isBootPublic(player, now);
+          const points = scoreOf(player, false, now);
           return (
             <Text key={id} style={out ? styles.out : styles.copy}>
               {displayName(player)}
               {out && player.boot ? ` · ${player.boot}` : ""}
+              {points != null ? ` · ${points}` : ""}
             </Text>
           );
         })}
@@ -62,15 +76,16 @@ export default function App() {
           <Text style={styles.link}>Leagues</Text>
         </Pressable>
         <FlatList
-          data={board.managers}
-          keyExtractor={(item) => item.id}
+          data={ranked}
+          keyExtractor={(item) => item.manager.id}
           initialNumToRender={12}
           windowSize={7}
           renderItem={({ item }) => (
-            <Pressable accessibilityRole="button" onPress={() => setScreen({ name: "team", id: item.id })}>
-              <Text style={styles.name}>{item.name}</Text>
+            <Pressable accessibilityRole="button" onPress={() => setScreen({ name: "team", id: item.manager.id })}>
+              <Text style={styles.name}>{item.manager.name}</Text>
               <Text style={styles.copy}>
-                {item.picks.map((id, index) => {
+                {item.total} ·{" "}
+                {item.manager.picks.map((id, index) => {
                   const row = contestant(id);
                   if (!row) return null;
                   const out = isBootPublic(row, now);
