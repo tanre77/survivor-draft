@@ -46,7 +46,8 @@ enum Scoring {
         guard let boot else { return nil }
         let text = boot.lowercased()
         if text.range(of: #"\d+(?:st|nd|rd|th) place"#, options: .regularExpression) != nil, let n = place(boot) {
-            return max(0, points(forPlace: n, castSize: castSize, advanced: advanced))
+            let finish = (n == 3 && (text.contains("finalist") || text.contains("final tribal"))) || text.contains("tie for second") || text.contains("tied for 2nd") ? 2 : n
+            return max(0, points(forPlace: finish, castSize: castSize, advanced: advanced))
         }
         if text.contains("quit") || text.contains("medevac") || text.contains("medical") || text.contains("evacuat") {
             return 0

@@ -40,7 +40,11 @@ export function finishPoints(boot, castSize, advanced = false) {
   if (!boot) return null;
   const text = String(boot).toLowerCase();
   const placed = text.match(/(\d+)(?:st|nd|rd|th) place/);
-  if (placed) return Math.max(0, pointsForPlace(Number(placed[1]), castSize, advanced));
+  if (placed) {
+    const n = Number(placed[1]);
+    const place = (n === 3 && /finalist|final tribal/.test(text)) || /tie for second|tied for 2nd/.test(text) ? 2 : n;
+    return Math.max(0, pointsForPlace(place, castSize, advanced));
+  }
   if (/quit|medevac|medical|evacuat/.test(text)) return 0;
   if (/sole survivor|\bwinner\b/.test(text)) return 1;
   if (/runner-?up/.test(text)) return pointsForPlace(2, castSize, advanced);

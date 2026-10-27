@@ -118,7 +118,7 @@ export default function App() {
         <Text style={styles.copy}>In progress</Text>
       </Pressable>
       <Text style={styles.copy}>
-        The $10 buy-in is settled outside the app. Lowest score wins. A hidden boot is not on the score yet.
+        The $25 buy-in is settled outside the app. Lowest score wins. A hidden boot is not on the score yet.
       </Text>
       <Text style={styles.copy}>Public boots right now: {board.contestants.filter((row) => scoreOf(row, false, now) != null).length}</Text>
       <Pressable accessibilityRole="button" onPress={() => setScreen({ name: "privacy" })}>

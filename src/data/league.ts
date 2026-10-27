@@ -44,7 +44,9 @@ export const contestants: Contestant[] = [
     hometown: "Atlanta, GA",
     job: "Criminal defense attorney",
     tribe: "savu",
-    status: "active",
+    status: "out",
+    boot: "5th voted out · Day 10",
+    revealAt: "2026-10-22T06:00:00.000Z",
   },
   {
     id: "ana",
@@ -170,7 +172,9 @@ export const contestants: Contestant[] = [
     hometown: "Jersey City, NJ",
     job: "Entrepreneur",
     tribe: "dina",
-    status: "active",
+    status: "out",
+    boot: "6th voted out · Day 10",
+    revealAt: "2026-10-22T06:00:00.000Z",
   },
   {
     id: "maggie",
@@ -355,7 +359,11 @@ export function finishPoints(boot: string | undefined, castSize = contestants.le
   if (!boot) return null;
   const text = boot.toLowerCase();
   const placed = text.match(/(\d+)(?:st|nd|rd|th) place/);
-  if (placed) return Math.max(0, pointsForPlace(Number(placed[1]), castSize, advanced));
+  if (placed) {
+    const n = Number(placed[1]);
+    const place = (n === 3 && /finalist|final tribal/.test(text)) || /tie for second|tied for 2nd/.test(text) ? 2 : n;
+    return Math.max(0, pointsForPlace(place, castSize, advanced));
+  }
   if (/quit|medevac|medical|evacuat/.test(text)) return 0;
   if (/sole survivor|\bwinner\b/.test(text)) return 1;
   if (/runner-?up/.test(text)) return pointsForPlace(2, castSize, advanced);
@@ -364,6 +372,28 @@ export function finishPoints(boot: string | undefined, castSize = contestants.le
   const n = Number(match[1]);
   const place = /place|finalist/.test(text) && !/voted out|eliminat/.test(text) ? n : castSize - n + 1;
   return Math.max(0, pointsForPlace(place, castSize, advanced));
+}
+
+/** Lowest total is 1st. A matching total goes to the better finish, then the next pick. A true tie shares the place. */
+export function compareStandings(
+  a: { total: number; picks: readonly string[] },
+  b: { total: number; picks: readonly string[] },
+  now = Date.now(),
+): number {
+  if (a.total !== b.total) return a.total - b.total;
+  const order = (picks: readonly string[]) =>
+    picks
+      .map((id) => pickPoints(contestantById(id), now) ?? Number.POSITIVE_INFINITY)
+      .sort((left, right) => left - right);
+  const af = order(a.picks);
+  const bf = order(b.picks);
+  const count = Math.max(af.length, bf.length);
+  for (let i = 0; i < count; i += 1) {
+    const av = af[i] ?? Number.POSITIVE_INFINITY;
+    const bv = bf[i] ?? Number.POSITIVE_INFINITY;
+    if (av !== bv) return av - bv;
+  }
+  return 0;
 }
 
 /** Lowest total is 1st. Ties share a place, and the next place skips. */

@@ -6,6 +6,7 @@ import { lastDrafter, loadCustomLeagues, newId, nextDrafter, rosterKey, saveCust
 import type { ImportedSheet } from "@/data/import-sheet";
 import { loadProfile, saveProfile } from "@/data/profile";
 import { deleteSharedLeague, fetchSharedLeague, normalizeCode, publishSharedLeague, saveSharedLeague, type SharedLeague } from "@/lib/shared-leagues";
+import { fetchWikiBoots } from "@/lib/wiki-live";
 import { alreadyPinged, markPinged, pingTurn, sameName } from "@/lib/turn-alert";
 import {
   SEAT_KEY,
@@ -24,7 +25,7 @@ import {
   photoSrc,
   pickIndex,
   pickPoints,
-  standingPlace,
+  compareStandings,
   votingRecord,
   winCount,
   type Contestant,
@@ -88,6 +89,7 @@ export function DraftLeague() {
   const [filter, setFilter] = useState<CastFilter>("all");
   const [stack, setStack] = useState<Panel[]>([]);
   const [now, setNow] = useState(() => Date.now());
+  const [wikiRev, setWikiRev] = useState(0);
   const leaguesRef = useRef(leagues);
   leaguesRef.current = leagues;
   const saveFlight = useRef(0);
@@ -193,7 +195,29 @@ export function DraftLeague() {
     if (next == null) return;
     const id = window.setTimeout(() => setNow(Date.now()), next - now + 250);
     return () => window.clearTimeout(id);
-  }, [now]);
+  }, [now, wikiRev]);
+
+  useEffect(() => {
+    let cancel = false;
+    void fetchWikiBoots()
+      .then((boots) => {
+        if (cancel) return;
+        let changed = false;
+        for (const boot of boots) {
+          const player = contestants.find((contestant) => contestant.id === boot.id);
+          if (!player || player.status === "out") continue;
+          player.status = "out";
+          player.boot = boot.boot;
+          player.revealAt = boot.revealAt;
+          changed = true;
+        }
+        if (changed) setWikiRev((rev) => rev + 1);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancel = true;
+    };
+  }, []);
 
   const seat = seatId ? managerById(seatId) : null;
   const custom = place.view === "custom" ? leagues.find((l) => l.id === place.id) : undefined;
@@ -556,9 +580,18 @@ export function DraftLeague() {
               if (!custom || !custom.drafting) return;
               const adding = picks.length > customPerson.picks.length;
               const removing = picks.length < customPerson.picks.length;
-              if (adding && nextDrafter(custom.seats)?.id !== customPerson.id) return;
+              if (adding && (picks.length > 3 || nextDrafter(custom.seats)?.id !== customPerson.id)) return;
               if (removing && lastDrafter(custom.seats)?.id !== customPerson.id) return;
               if (takenBy(custom.seats, picks, [customPerson.id])) return;
+              if (adding) {
+                const added = picks[picks.length - 1];
+                const player = added ? contestantByName(added) : undefined;
+                const shares = custom.seats.reduce((sum, seat) => {
+                  if (seat.id === customPerson.id) return sum;
+                  return sum + seat.picks.filter((pick) => (player ? contestantByName(pick)?.id === player.id : pick.trim().toLowerCase() === added?.trim().toLowerCase())).length;
+                }, 0);
+                if (shares >= 4) return;
+              }
               updateLeague({
                 ...custom,
                 seats: custom.seats.map((s) => (s.id === customPerson.id ? { ...s, picks } : s)),
@@ -795,11 +828,16 @@ function LeagueBoard({
       manager: m,
       total: m.picks.reduce((sum, id) => sum + (pickPoints(contestantById(id), now) ?? 0), 0),
       pending: m.picks.filter((id) => pickPoints(contestantById(id), now) == null).length,
+      picks: m.picks,
     }));
-    const totals = scored.map((row) => row.total);
-    return scored
-      .map((row) => ({ ...row, place: standingPlace(row.total, totals) }))
-      .sort((a, b) => a.place - b.place || a.total - b.total || a.manager.name.localeCompare(b.manager.name));
+    const sorted = [...scored].sort(
+      (a, b) => compareStandings(a, b, now) || a.manager.name.localeCompare(b.manager.name),
+    );
+    let place = 1;
+    return sorted.map((row, index) => {
+      if (index > 0 && compareStandings(sorted[index - 1], row, now) !== 0) place = index + 1;
+      return { ...row, place };
+    });
   }, [q, now]);
   const leaders = rows.filter((row) => row.place === 1).length;
 
@@ -811,7 +849,9 @@ function LeagueBoard({
           <p className="text-xs font-semibold tracking-widest text-toka">STANDINGS</p>
           <h2 className="mt-1 font-display text-4xl leading-none">Lowest score leads</h2>
           <p className="mt-1 text-sm text-muted">
-            {leaders} {leaders === 1 ? "person is" : "people are"} tied for 1st. A boot adds that player's points, same as the sheet.
+            {leaders === 1
+              ? "Lowest score leads. A tie goes to the better finish, then the next pick."
+              : `${leaders} people are tied. Their finishes match, so they share the place.`}
           </p>
           <ol className="mt-3 flex flex-col gap-1">
             {rows.map((row) => (

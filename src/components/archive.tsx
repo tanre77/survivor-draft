@@ -14,7 +14,7 @@ const STANDARD_EARLY = [
 const STANDARD_LATE = [
   ["4th place", "4"],
   ["3rd place", "3"],
-  ["Runner-up", "2"],
+  ["Both finalists", "2"],
   ["Sole survivor", "1"],
 ];
 
@@ -68,14 +68,14 @@ export function RulesBoard() {
         <p className="text-xs font-semibold tracking-widest text-muted">FROM THE SHEET</p>
         <h2 className="mt-1 font-display text-5xl leading-none">Lowest score wins</h2>
         <p className="mt-2 max-w-prose text-sm text-muted">
-          $10 buy-in, settled between the table outside this app. The app does not take payment. A tie splits the pot. You only score a boot if you were a member of it.
+          Survivor 51 is $25 a person, settled outside this app. Venmo @Erin-8 or Zelle Tanner at 740-644-6229. The app does not take payment. The pot is $575. First pays $310, second $160, third $80, and last place gets $25 back.
         </p>
       </div>
 
       <section className="rounded-2xl bg-surface p-4">
         <h3 className="font-display text-3xl leading-none">Standard</h3>
         <p className="mt-1 text-sm text-muted">
-          Pre-jury and jury do not matter. This cast is {CAST}, so the first boot is {CAST} and each later boot is one point less. The winner is 1. Survivor 51 uses this.
+          Your score is the finish place. 20th place is 20. The winner is 1. Lowest total wins. A tie goes to the better finish, then the next pick. Both losing finalists score 2, not 2 and 3. Each person drafts 3 names. A contestant can be taken 4 times, and no two teams can match.
         </p>
         <ScoreGrid rows={STANDARD_EARLY} emphasizeFirst />
         <ScoreGrid rows={STANDARD_LATE} emphasizeLast />
@@ -101,7 +101,7 @@ export function RulesBoard() {
           </li>
           <li>
             <p className="font-semibold">Quits and medevacs</p>
-            <p className="text-muted">Zero. A quit or medevac during tribal does not score either.</p>
+            <p className="text-muted">They score their finish place. A quit in 19th is 19. One with no place is 0.</p>
           </li>
           <li>
             <p className="font-semibold">Edge of Extinction</p>

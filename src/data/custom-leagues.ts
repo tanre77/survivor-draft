@@ -75,6 +75,9 @@ export function eraseCustomLeagues() {
   localStorage.removeItem(KEY);
 }
 
+export const PICKS_PER_TEAM = 3;
+export const MAX_TIMES_DRAFTED = 4;
+
 export function snakeSlot(pickNumber: number, count: number): number {
   if (count <= 1) return 0;
   const round = Math.floor(pickNumber / count);
@@ -85,6 +88,7 @@ export function snakeSlot(pickNumber: number, count: number): number {
 export function nextDrafter<T extends { picks: string[] }>(seats: T[]): T | null {
   if (seats.length === 0) return null;
   const made = seats.reduce((sum, seat) => sum + seat.picks.length, 0);
+  if (made >= seats.length * PICKS_PER_TEAM) return null;
   return seats[snakeSlot(made, seats.length)] ?? null;
 }
 

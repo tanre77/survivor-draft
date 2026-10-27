@@ -23,7 +23,7 @@ struct LeagueListView: View {
                     }
                 }
                 Section {
-                    Text("Seats stay on this device. The $10 buy-in is settled outside the app. This app does not take payment.")
+                    Text("Seats stay on this device. The $25 buy-in is settled outside the app. This app does not take payment.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }

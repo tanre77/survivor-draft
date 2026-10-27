@@ -432,7 +432,7 @@ export function CustomBoard({
   const scored = league.seats.some((seat) => seat.scores != null && seat.scores.length > 0);
   const clock = league.drafting && !scored ? nextDrafter(league.seats) : null;
   const orderLocked = league.seats.some((seat) => seat.picks.length > 0);
-  const rounds = [0, 1, 2, 3].map((round) =>
+  const rounds = [0, 1, 2].map((round) =>
     league.seats.map((_, slot) => league.seats[round % 2 === 0 ? slot : league.seats.length - 1 - slot].name),
   );
 
@@ -668,8 +668,20 @@ export function CustomTeam({
     return seat.picks.some((pick) => contestantByName(pick)?.id === player.id);
   }
 
+  function timesTaken(player: Contestant): number {
+    return seats.reduce(
+      (sum, other) => sum + other.picks.filter((pick) => contestantByName(pick)?.id === player.id).length,
+      0,
+    );
+  }
+
   function add(player: Contestant) {
-    if (!drafting || !myTurn || onTeam(player)) return;
+    if (!drafting || !myTurn || onTeam(player) || isBootPublic(player)) return;
+    if (seat.picks.length >= 3) return;
+    if (timesTaken(player) >= 4) {
+      setBlocked(`${player.first} is already on 4 teams.`);
+      return;
+    }
     const picks = [...seat.picks, displayName(player)];
     const owner = takenBy(seats, picks, [seat.id]);
     if (owner) {
@@ -692,7 +704,7 @@ export function CustomTeam({
       )}
       {drafting && !clockMine && clock && <p className="mt-2 text-sm text-muted">Waiting on {clock.name}. The draft snakes, so the last pick of a round goes first in the next.</p>}
       {drafting && myTurn && <p className="mt-2 text-sm font-semibold text-toka">You're on the clock.</p>}
-      {drafting && <p className="mt-2 text-sm text-muted">No two seats can draft the same exact team.</p>}
+      {drafting && <p className="mt-2 text-sm text-muted">Three picks each. A player can be drafted 4 times, and no two teams can match.</p>}
       {blocked && <p className="mt-2 text-sm font-semibold text-boot">{blocked}</p>}
       {seat.picks.length === 0 && <p className="mt-4 text-sm text-muted">No picks yet.</p>}
       <ol className="mt-4 flex flex-col gap-2">
@@ -785,6 +797,11 @@ export function CustomTeam({
                   const offered = seat.picks[deal.mine];
                   const wanted = partner.picks[index];
                   if (offered == null || wanted == null) return;
+                  const wantedPlayer = contestantByName(wanted);
+                  if (wantedPlayer && isBootPublic(wantedPlayer)) {
+                    setBlocked(`${wanted} is already out and can't be drafted.`);
+                    return;
+                  }
                   minePicks[deal.mine] = wanted;
                   const otherPicks = partner.picks.map((pick, pickIndex) => (pickIndex === index ? offered : pick));
                   const mineHit = takenBy(seats, minePicks, [seat.id, partner.id]);
@@ -812,29 +829,24 @@ export function CustomTeam({
       {drafting && myTurn && (
         <section className="mt-5">
           <h2 className="text-xs font-semibold tracking-widest text-muted">THE CAST</h2>
-          <p className="mt-1 text-sm text-muted">Tap a player to draft them.</p>
+          <p className="mt-1 text-sm text-muted">Tap a player to draft them. Anyone already out is off the board.</p>
           <ul className="mt-3 grid grid-cols-3 gap-2">
-            {contestants.map((player) => {
+            {contestants.filter((player) => !isBootPublic(player)).map((player) => {
               const mine = onTeam(player);
-              const out = isBootPublic(player);
+              const full = timesTaken(player) >= 4;
               return (
                 <li key={player.id}>
                   <button
                     type="button"
-                    disabled={mine}
+                    disabled={mine || full}
                     onClick={() => add(player)}
                     className="w-full overflow-hidden rounded-xl bg-surface text-left disabled:opacity-40"
                   >
-                    <img
-                      src={photoSrc(player.id)}
-                      alt=""
-                      width={160}
-                      height={214}
-                      className={`aspect-[3/4] w-full object-cover ${out ? "opacity-70" : ""}`}
-                    />
-                    <span className={`block px-2 py-2 text-sm font-semibold leading-tight ${out ? "text-boot" : ""}`}>
+                    <img src={photoSrc(player.id)} alt="" width={160} height={214} className="aspect-[3/4] w-full object-cover" />
+                    <span className="block px-2 py-2 text-sm font-semibold leading-tight">
                       {player.first}
                       {mine ? <span className="mt-0.5 block text-xs font-semibold text-muted">On your team</span> : null}
+                      {!mine && full ? <span className="mt-0.5 block text-xs font-semibold text-muted">Drafted 4 times</span> : null}
                     </span>
                   </button>
                 </li>

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { matchupWinner, pairSeats, snakeSlot, takenBy } from "./custom-leagues.ts";
+import { matchupWinner, nextDrafter, pairSeats, snakeSlot, takenBy } from "./custom-leagues.ts";
 
 const seats = [
   { id: "a", name: "Elise", picks: ["Joe", "Kyle", "Mitch"] },
@@ -23,6 +23,15 @@ test("head to head pairs the order and the lower score wins", () => {
   assert.equal(matchupWinner(20, 14), "b");
   assert.equal(matchupWinner(9, 9), "tie");
   assert.equal(matchupWinner(9, null), "open");
+});
+
+test("the draft stops after three picks each", () => {
+  const table = [
+    { id: "a", picks: ["a", "b", "c"] },
+    { id: "b", picks: ["d", "e", "f"] },
+  ];
+  assert.equal(nextDrafter(table), null);
+  assert.equal(nextDrafter([{ id: "a", picks: ["a"] }, { id: "b", picks: [] }])?.id, "b");
 });
 
 test("the same players in a different order are the same team", () => {
