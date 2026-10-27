@@ -147,15 +147,17 @@ export function LeagueHome({
             </p>
           </div>
         )}
-        {!erasing ? (
-          <button type="button" onClick={() => setErasing(true)} className="mt-4 text-sm font-semibold text-muted">
-            Erase this device
-          </button>
-        ) : (
-          <button type="button" onClick={eraseDevice} className="mt-4 text-sm font-semibold text-ember">
-            Erase the saved seat and leagues
-          </button>
-        )}
+        <div className="mt-4 border-t border-line pt-4">
+          {!erasing ? (
+            <button type="button" onClick={() => setErasing(true)} className="text-sm font-semibold text-muted">
+              Erase this device
+            </button>
+          ) : (
+            <button type="button" onClick={eraseDevice} className="text-sm font-semibold text-ember">
+              Erase the saved seat and leagues
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

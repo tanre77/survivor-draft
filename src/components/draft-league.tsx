@@ -1,5 +1,5 @@
 import { createContext, lazy, Suspense, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
-import { BarChart3, ChevronLeft, ChevronRight, Gem, LayoutGrid, ScrollText, Search, Trophy, UserRound, Users, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Gem, LayoutGrid, ScrollText, Search, UserRound, Users, X } from "lucide-react";
 import { reportError, startDiagnostics } from "@/lib/diagnostics";
 import { CreateLeague, CustomBoard, CustomTeam, LeagueHome } from "@/components/league-home";
 import { lastDrafter, loadCustomLeagues, newId, nextDrafter, rosterKey, saveCustomLeagues, shuffleSeats, takenBy, type CustomLeague } from "@/data/custom-leagues";
@@ -43,7 +43,6 @@ const HistoryBoard = lazy(() => import("@/components/archive").then((mod) => ({ 
 const PastTeam = lazy(() => import("@/components/archive").then((mod) => ({ default: mod.PastTeam })));
 const RulesBoard = lazy(() => import("@/components/archive").then((mod) => ({ default: mod.RulesBoard })));
 const SeasonPage = lazy(() => import("@/components/archive").then((mod) => ({ default: mod.SeasonPage })));
-const FinishedSeasons = lazy(() => import("@/components/archive").then((mod) => ({ default: mod.FinishedSeasons })));
 
 function Later({ children }: { children: ReactNode }) {
   return <Suspense fallback={<p className="py-8 text-sm text-muted">Loading…</p>}>{children}</Suspense>;
@@ -80,7 +79,8 @@ export function DraftLeague() {
   const [place, setPlace] = useState<Place>({ view: "home" });
   const [leagues, setLeagues] = useState<CustomLeague[]>([]);
   const [tab, setTab] = useState<Tab>("league");
-  const [homeTab, setHomeTab] = useState<"leagues" | "stats" | "past" | "you">("leagues");
+  const [section, setSection] = useState<"board" | "stats" | "past">("board");
+  const [homeTab, setHomeTab] = useState<"leagues" | "you">("leagues");
   const [profileName, setProfileName] = useState("");
   const [teamId, setTeamId] = useState<string | null>(null);
   const [pastTeam, setPastTeam] = useState<{ seasonId: string; name: string } | null>(null);
@@ -327,7 +327,7 @@ export function DraftLeague() {
 
   const liveSeat = place.view === "s51" ? seat : null;
   const bare = place.view === "home" || place.view === "make" || place.view === "import";
-  const showSearch = liveSeat && !teamId && (tab === "league" || tab === "cards");
+  const showSearch = liveSeat && !teamId && (tab === "cards" || (tab === "league" && section === "board"));
   const panel = stack[stack.length - 1] ?? null;
   const backLabel =
     place.view === "s51" && teamId
@@ -474,21 +474,6 @@ export function DraftLeague() {
               }}
             />
             <SupportBoard you={profileName} />
-          </Later>
-        )}
-        {place.view === "home" && homeTab === "stats" && (
-          <Later>
-            <StatsBoard seatName={seat?.name} />
-          </Later>
-        )}
-        {place.view === "home" && homeTab === "past" && (
-          <Later>
-            <FinishedSeasons
-              onOpen={(id) => {
-                setPastTeam(null);
-                setPlace({ view: "past", id });
-              }}
-            />
           </Later>
         )}
         {place.view === "make" && (
@@ -643,42 +628,65 @@ export function DraftLeague() {
           />
         )}
         {liveSeat && !teamId && tab === "league" && (
-          <LeagueBoard seat={liveSeat} query={query} onOpenManager={openTeam} onOpenPlayer={(id) => setStack([{ kind: "player", id }])} />
+          <div>
+            <div className="mb-4 flex gap-2">
+              {(
+                [
+                  ["board", "Standings"],
+                  ["stats", "Stats"],
+                  ["past", "Past"],
+                ] as const
+              ).map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => {
+                    setSection(id);
+                    setPastTeam(null);
+                  }}
+                  className={`rounded-full px-3 py-1.5 text-sm font-semibold ${section === id ? "bg-toka text-toka-ink" : "bg-surface text-muted"}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {section === "board" && (
+              <LeagueBoard seat={liveSeat} query={query} onOpenManager={openTeam} onOpenPlayer={(id) => setStack([{ kind: "player", id }])} />
+            )}
+            {section === "stats" && (
+              <Later>
+                <GameStats onOpenPlayer={(id) => setStack([{ kind: "player", id }])} />
+                <div className="mt-8">
+                  <StatsBoard seatName={liveSeat.name} />
+                </div>
+              </Later>
+            )}
+            {section === "past" && !pastTeam && (
+              <Later>
+                <HistoryBoard seatName={liveSeat.name} onOpenTeam={(seasonId, name) => setPastTeam({ seasonId, name })} />
+              </Later>
+            )}
+            {section === "past" && pastTeam && (
+              <Later>
+                <PastTeam seasonId={pastTeam.seasonId} name={pastTeam.name} />
+              </Later>
+            )}
+          </div>
         )}
         {liveSeat && !teamId && tab === "cards" && (
           <CardBoard seat={liveSeat} query={query} filter={filter} onOpenPlayer={(id) => setStack([{ kind: "player", id }])} />
-        )}
-        {liveSeat && !teamId && tab === "past" && !pastTeam && (
-          <Later>
-            <HistoryBoard seatName={liveSeat.name} onOpenTeam={(seasonId, name) => setPastTeam({ seasonId, name })} />
-          </Later>
-        )}
-        {liveSeat && !teamId && tab === "past" && pastTeam && (
-          <Later>
-            <PastTeam seasonId={pastTeam.seasonId} name={pastTeam.name} />
-          </Later>
         )}
         {liveSeat && !teamId && tab === "rules" && (
           <Later>
             <RulesBoard />
           </Later>
         )}
-        {liveSeat && !teamId && tab === "stats" && (
-          <Later>
-            <GameStats onOpenPlayer={(id) => setStack([{ kind: "player", id }])} />
-            <div className="mt-8">
-              <StatsBoard seatName={liveSeat.name} />
-            </div>
-          </Later>
-        )}
       </main>
 
       {place.view === "home" && (
         <nav className="dock shrink-0 border-t border-line bg-bg">
-          <div className="mx-auto grid max-w-5xl grid-cols-4">
+          <div className="mx-auto grid max-w-5xl grid-cols-2">
             <TabButton icon={<Users className="size-5" />} label="Leagues" active={homeTab === "leagues"} onClick={() => setHomeTab("leagues")} />
-            <TabButton icon={<BarChart3 className="size-5" />} label="Stats" active={homeTab === "stats"} onClick={() => setHomeTab("stats")} />
-            <TabButton icon={<Trophy className="size-5" />} label="Past" active={homeTab === "past"} onClick={() => setHomeTab("past")} />
             <TabButton icon={<UserRound className="size-5" />} label="You" active={homeTab === "you"} onClick={() => setHomeTab("you")} />
           </div>
         </nav>
@@ -686,12 +694,10 @@ export function DraftLeague() {
 
       {liveSeat && (
         <nav className="dock shrink-0 border-t border-line bg-bg">
-          <div className="mx-auto grid max-w-5xl grid-cols-6">
+          <div className="mx-auto grid max-w-5xl grid-cols-4">
             <TabButton icon={<Users className="size-5" />} label="League" active={tab === "league" && teamId !== liveSeat.id} onClick={() => selectTab("league")} />
             <TabButton icon={<LayoutGrid className="size-5" />} label="Cards" active={tab === "cards" && !teamId} onClick={() => selectTab("cards")} />
             <TabButton icon={<UserRound className="size-5" />} label="Mine" active={teamId === liveSeat.id} onClick={() => selectTab("mine")} />
-            <TabButton icon={<Trophy className="size-5" />} label="Past" active={tab === "past" && !teamId} onClick={() => selectTab("past")} />
-            <TabButton icon={<BarChart3 className="size-5" />} label="Stats" active={tab === "stats" && !teamId} onClick={() => selectTab("stats")} />
             <TabButton icon={<ScrollText className="size-5" />} label="Rules" active={tab === "rules" && !teamId} onClick={() => selectTab("rules")} />
           </div>
         </nav>
