@@ -10,6 +10,10 @@ screenshots
 *.log
 .DS_Store
 android/node_modules
+android/android/.gradle
+android/android/build
+android/android/app/build
+android/android/local.properties
 ios/*.xcodeproj
 ios/DerivedData
 google-services.json
