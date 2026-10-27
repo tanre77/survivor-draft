@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { eraseCustomLeagues, lastDrafter, matchupWinner, newId, nextDrafter, pairSeats, rosterKey, seatColors, takenBy, type CustomLeague, type CustomSeat } from "@/data/custom-leagues";
 import { eraseProfile } from "@/data/profile";
-import { SEAT_KEY, bonusOf, contestantByName, contestants, displayName, idolCount, isBootPublic, photoSrc, pickPoints, winCount, type Contestant } from "@/data/league";
+import { SEAT_KEY, advancedBonus, bonusOf, contestantByName, contestants, displayName, idolCount, isBootPublic, photoSrc, pickPoints, playCount, voteCount, winCount, advantageCount, type Contestant } from "@/data/league";
 import { LeagueChat } from "@/components/league-chat";
 import { alertsGranted, armTurnAlerts, sameName } from "@/lib/turn-alert";
 
@@ -309,8 +309,8 @@ export function CreateLeague({
           <span className="block text-sm font-semibold">Advanced scoring</span>
           <span className="mt-0.5 block text-sm text-muted">
             {advanced
-              ? "On. The first six boots are pre-jury, 2 points apart. The jury is 1 point apart. The winner is still 1."
-              : "Off. Pre-jury and jury score the same, one point apart down to the winner."}
+              ? "On. Pre-jury boots are 2 points apart. An idol or advantage is −2, a save is −5, an immunity win is −1, and a final tribal vote is −1."
+              : "Off. Finish place only. Idols, advantages, immunity, and votes stay off the score."}
           </span>
         </span>
         <span className={`relative h-7 w-12 shrink-0 rounded-full ${advanced ? "bg-toka" : "bg-line"}`}>
@@ -367,7 +367,7 @@ export function CreateLeague({
   );
 }
 
-function livePoints(seat: CustomSeat): number | null {
+function livePoints(seat: CustomSeat, advanced = false): number | null {
   if (seat.scores && seat.scores.length) return seat.scores.reduce((sum, n) => sum + n, 0);
   if (seat.total) {
     const parsed = Number(seat.total.replace(/[^0-9.-]/g, ""));
@@ -377,10 +377,12 @@ function livePoints(seat: CustomSeat): number | null {
   let any = false;
   for (const pick of seat.picks) {
     const player = contestantByName(pick);
-    const points = player ? pickPoints(player) : null;
-    if (points == null) continue;
+    if (!player) continue;
+    const finish = pickPoints(player);
+    const extra = advanced ? advancedBonus(player) : 0;
+    if (finish == null && extra === 0) continue;
     any = true;
-    total += points;
+    total += (finish ?? 0) - extra;
   }
   return any ? total : null;
 }
@@ -524,8 +526,8 @@ export function CustomBoard({
           <p className="mt-1 text-sm text-muted">Pairs follow this order. The lower score wins. An odd seat gets a bye.</p>
           <ul className="mt-3 flex flex-col gap-2">
             {pairSeats(league.seats).map(([a, b]) => {
-              const aPoints = livePoints(a);
-              const bPoints = b ? livePoints(b) : null;
+              const aPoints = livePoints(a, league.advanced);
+              const bPoints = b ? livePoints(b, league.advanced) : null;
               const winner = b ? matchupWinner(aPoints, bPoints) : "open";
               return (
                 <li key={a.id} className="flex items-center justify-between gap-3 rounded-xl bg-surface-2 px-3 py-3 text-sm">
@@ -632,6 +634,7 @@ export function CustomTeam({
   seat,
   seats,
   bonus,
+  advanced = false,
   drafting,
   trades,
   canDraft = true,
@@ -641,6 +644,7 @@ export function CustomTeam({
   seat: CustomSeat;
   seats: CustomSeat[];
   bonus: boolean;
+  advanced?: boolean;
   drafting: boolean;
   trades: boolean;
   canDraft?: boolean;
@@ -649,12 +653,12 @@ export function CustomTeam({
 }) {
   const [deal, setDeal] = useState<{ mine: number; otherId: string | null } | null>(null);
   const [blocked, setBlocked] = useState("");
-  const scored = bonus
-    ? seat.picks.map((pick) => {
-        const player = contestantByName(pick);
-        return player ? bonusOf(player) : 0;
-      })
-    : [];
+  const scored = seat.picks.map((pick) => {
+    const player = contestantByName(pick);
+    if (!player) return 0;
+    if (advanced) return advancedBonus(player);
+    return bonus ? bonusOf(player) : 0;
+  });
   const teamBonus = scored.reduce((sum, n) => sum + n, 0);
   const others = seats.filter((other) => other.id !== seat.id && other.picks.length > 0);
   const partner = deal?.otherId ? seats.find((other) => other.id === deal.otherId) : undefined;
@@ -696,7 +700,9 @@ export function CustomTeam({
     <div>
       <p className="text-xs font-semibold tracking-widest text-muted">TEAM</p>
       <h1 className="mt-1 font-display text-5xl leading-none">{seat.name}</h1>
-      {bonus && <p className="mt-2 text-sm text-toka">Bonus −{teamBonus} off the score</p>}
+      {(advanced || bonus) && teamBonus > 0 && (
+        <p className="mt-2 text-sm text-toka">{advanced ? "Advanced" : "Bonus"} −{teamBonus} off the score</p>
+      )}
       {!drafting && <p className="mt-2 text-sm text-muted">The draft is closed.</p>}
       {drafting && !trades && <p className="mt-2 text-sm text-muted">Trades are off for this league.</p>}
       {drafting && clockMine && !canDraft && (
@@ -711,12 +717,16 @@ export function CustomTeam({
         {seat.picks.map((pick, pickIndex) => {
           const player = contestantByName(pick);
           const out = Boolean(player && isBootPublic(player));
-          const points = bonus && player ? bonusOf(player) : 0;
-          const idols = bonus && player ? idolCount(player) : 0;
-          const wins = bonus && player ? winCount(player) : 0;
+          const points = player ? (advanced ? advancedBonus(player) : bonus ? bonusOf(player) : 0) : 0;
+          const idols = player ? idolCount(player) + advantageCount(player) : 0;
+          const plays = player ? playCount(player) : 0;
+          const wins = player ? winCount(player) : 0;
+          const votes = player ? voteCount(player) : 0;
           const detail = [
-            wins ? `${wins} ${wins === 1 ? "challenge" : "challenges"}` : "",
-            idols ? `${idols} ${idols === 1 ? "idol" : "idols"}` : "",
+            wins ? `${wins} ${wins === 1 ? "immunity" : "immunities"}` : "",
+            idols ? `${idols} found` : "",
+            plays ? `${plays} saved` : "",
+            votes ? `${votes} ${votes === 1 ? "vote" : "votes"}` : "",
           ]
             .filter(Boolean)
             .join(" · ");
@@ -735,7 +745,7 @@ export function CustomTeam({
                 <span className="min-w-0">
                   <span className="block text-xs font-semibold tracking-widest text-muted">PICK {pickIndex + 1}</span>
                   <span className={`block truncate text-base font-semibold ${out ? "text-boot" : ""}`}>{player ? displayName(player) : pick}</span>
-                  {bonus && player && points > 0 && (
+                  {(advanced || bonus) && player && points > 0 && (
                     <span className="mt-1 block text-sm text-toka">
                       {detail} · −{points}
                     </span>

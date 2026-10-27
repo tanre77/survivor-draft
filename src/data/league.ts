@@ -297,8 +297,22 @@ export function photoSrc(id: string): string {
   return `/cast/${id}.jpg`;
 }
 
-/** Idols found and challenge wins. Counts with a reveal time stay hidden until 11:00 PM Pacific. */
-export const bonuses: Record<string, { idols?: number; wins?: number; winsAt?: string; idolsAt?: string }> = {
+/** Idols found, advantages, successful plays, challenge wins, and final-tribal votes. A reveal time stays hidden until 11:00 PM Pacific. */
+export const bonuses: Record<
+  string,
+  {
+    idols?: number;
+    advantages?: number;
+    plays?: number;
+    wins?: number;
+    votes?: number;
+    winsAt?: string;
+    idolsAt?: string;
+    advantagesAt?: string;
+    playsAt?: string;
+    votesAt?: string;
+  }
+> = {
   alexis: { wins: 2, winsAt: "2026-10-08T06:00:00.000Z" },
   ana: { wins: 1 },
   brady: { wins: 3, winsAt: "2026-10-15T06:00:00.000Z" },
@@ -338,10 +352,33 @@ export function idolCount(c: Contestant, now = Date.now()): number {
   return row.idols;
 }
 
+export function advantageCount(c: Contestant, now = Date.now()): number {
+  const row = bonuses[c.id];
+  if (!row?.advantages || !released(row.advantagesAt, now)) return 0;
+  return row.advantages;
+}
+
+export function playCount(c: Contestant, now = Date.now()): number {
+  const row = bonuses[c.id];
+  if (!row?.plays || !released(row.playsAt, now)) return 0;
+  return row.plays;
+}
+
 export function winCount(c: Contestant, now = Date.now()): number {
   const row = bonuses[c.id];
   if (!row?.wins || !released(row.winsAt, now)) return 0;
   return row.wins;
+}
+
+export function voteCount(c: Contestant, now = Date.now()): number {
+  const row = bonuses[c.id];
+  if (!row?.votes || !released(row.votesAt, now)) return 0;
+  return row.votes;
+}
+
+/** Advanced only. Finding an idol or advantage is 2, a successful play is 5, an immunity win is 1, a final-tribal vote is 1. */
+export function advancedBonus(c: Contestant, now = Date.now()): number {
+  return (idolCount(c, now) + advantageCount(c, now)) * 2 + playCount(c, now) * 5 + winCount(c, now) + voteCount(c, now);
 }
 
 /** First six boots are pre-jury in advanced scoring. Standard scoring ignores that line. */

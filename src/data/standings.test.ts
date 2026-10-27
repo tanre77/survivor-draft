@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { compareStandings, finishPoints, ordinal, standingPlace } from "./league.ts";
+import { advancedBonus, compareStandings, contestantById, finishPoints, ordinal, standingPlace } from "./league.ts";
 
 test("the lowest score is first and ties stay tied", () => {
   const totals = [0, 21, 0, 41, 0];
@@ -20,4 +20,9 @@ test("a tied total goes to the better finish, and both finalists score 2", () =>
   assert.equal(finishPoints("3rd place · Finalist"), 2);
   assert.equal(finishPoints("2nd runner-up"), 2);
   assert.equal(finishPoints("19th place · Quit · Day 6"), 19);
+});
+
+test("advanced scoring charges idols, saves, immunity, and final votes", () => {
+  const rob = contestantById("rob");
+  assert.equal(advancedBonus(rob), 3);
 });

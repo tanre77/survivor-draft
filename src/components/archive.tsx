@@ -68,7 +68,7 @@ export function RulesBoard() {
         <p className="text-xs font-semibold tracking-widest text-muted">FROM THE SHEET</p>
         <h2 className="mt-1 font-display text-5xl leading-none">Lowest score wins</h2>
         <p className="mt-2 max-w-prose text-sm text-muted">
-          Survivor 51 is $25 a person, settled outside this app. Venmo @Erin-8 or Zelle Tanner at 740-644-6229. The app does not take payment. The pot is $575. First pays $310, second $160, third $80, and last place gets $25 back.
+          Survivor 51 is $25 a person, settled outside this app. The app does not take payment. The pot is $575. First pays $310, second $160, third $80, and last place gets $25 back.
         </p>
       </div>
 
@@ -84,7 +84,7 @@ export function RulesBoard() {
       <section className="rounded-2xl bg-surface p-4">
         <h3 className="font-display text-3xl leading-none">Advanced</h3>
         <p className="mt-1 text-sm text-muted">
-          The first {PRE_JURY_BOOTS} boots are pre-jury and cost 2 points apart. From the 7th boot on, that is the jury, and each finish is 1 point apart. The winner is still 1. A new league can turn this on.
+          The first {PRE_JURY_BOOTS} boots are pre-jury and cost 2 points apart. From the 7th boot on, that is the jury, and each finish is 1 point apart. The winner is still 1. These also come off the score: finding an idol or an advantage is −2, playing it and staying is −5, an immunity win is −1, and each final tribal vote is −1. Standard scoring ignores all of that.
         </p>
         <p className="mt-3 text-xs font-semibold tracking-widest text-muted">PRE-JURY</p>
         <ScoreGrid rows={ADVANCED_PRE} emphasizeFirst />
@@ -97,7 +97,7 @@ export function RulesBoard() {
         <ul className="mt-3 flex flex-col gap-3 text-sm">
           <li>
             <p className="font-semibold">Idols and advantages</p>
-            <p className="text-muted">Zero on the sheet, unless played at final-four fire or final tribal.</p>
+            <p className="text-muted">Zero in standard scoring. In advanced, finding one is −2. Playing it so you stay is −5.</p>
           </li>
           <li>
             <p className="font-semibold">Quits and medevacs</p>
@@ -109,7 +109,7 @@ export function RulesBoard() {
           </li>
           <li>
             <p className="font-semibold">Final tribal votes</p>
-            <p className="text-muted">The votes themselves are worth nothing.</p>
+            <p className="text-muted">Zero in standard scoring. In advanced, each vote is −1.</p>
           </li>
         </ul>
       </section>
@@ -118,6 +118,13 @@ export function RulesBoard() {
         <p className="text-xs font-semibold tracking-widest text-toka">WORKED EXAMPLE</p>
         <p className="mt-2 text-sm">
           Standard: a first boot is worth {CAST}. Advanced: a first boot is worth {bootPoints(1, true)} because those six are pre-jury. Either way the winner is 1, and the lowest total wins.
+        </p>
+      </section>
+
+      <section className="rounded-2xl border border-line p-4">
+        <h3 className="font-display text-3xl leading-none">Disclaimer</h3>
+        <p className="mt-2 text-sm text-muted">
+          This is a private scoreboard for a game between friends. It is not Survivor, CBS, or a gambling service, and it does not take payment. Scores, spoilers, and the chat can be wrong or late. The people who run this league are not liable for the buy-in, the prizes, a bad score, a missed pick, or anything said in the chat. You play at your own risk.
         </p>
       </section>
     </div>

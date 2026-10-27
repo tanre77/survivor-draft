@@ -573,6 +573,7 @@ export function DraftLeague() {
             seat={customPerson}
             seats={custom?.seats ?? []}
             bonus={custom?.bonus === true}
+            advanced={custom?.advanced === true}
             drafting={custom?.drafting !== false}
             trades={custom?.trades === true}
             canDraft={!custom?.seats.some((seat) => sameName(seat.name, profileName)) || sameName(customPerson.name, profileName)}
