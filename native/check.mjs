@@ -59,8 +59,13 @@ for (const word of ["CAMERA", "RECORD_AUDIO", "ACCESS_FINE_LOCATION", "READ_CONT
 }
 
 const gradle = readFileSync(new URL("../android/android/app/build.gradle", import.meta.url), "utf8");
-if (!gradle.includes("// id \"com.google.firebase.crashlytics\"")) fail("Crashlytics plugin must stay commented until config exists");
-if (gradle.includes("\nid \"com.google.gms.google-services\"")) fail("Google services plugin is enabled without a config file");
+const applied = (id) =>
+  gradle.split("\n").some((line) => {
+    const trimmed = line.trim();
+    return !trimmed.startsWith("//") && trimmed.includes(id);
+  });
+if (applied("com.google.firebase.crashlytics")) fail("Crashlytics plugin must stay off until a config file exists");
+if (applied("com.google.gms.google-services")) fail("Google services plugin is enabled without a config file");
 
 const rn = spawnSync("npx", ["tsc", "--noEmit", "-p", "android/tsconfig.json"], { stdio: "inherit" });
 if (rn.status !== 0) fail("React Native typecheck failed");

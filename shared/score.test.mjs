@@ -32,17 +32,21 @@ test("standard scoring ignores the jury line and advanced scoring does not", () 
   assert.equal(scoreOf(byId.get("aaliyah"), board.bonuses, before, false, cast, true), 27);
 });
 
-test("Toka wins stay off the score until the same instant", () => {
-  assert.equal(winCount(byId.get("brady"), board.bonuses, before), 0);
-  assert.equal(winCount(byId.get("brady"), board.bonuses, after), 2);
+test("Toka wins stay hidden until their reveal", () => {
+  const hidden = Date.parse("2026-10-15T05:59:59.000Z");
+  const shown = Date.parse("2026-10-15T06:00:00.000Z");
+  assert.equal(winCount(byId.get("brady"), board.bonuses, hidden), 0);
+  assert.equal(winCount(byId.get("brady"), board.bonuses, shown), 3);
   assert.equal(winCount(byId.get("rob"), board.bonuses, before), 1);
   assert.equal(idolCount(byId.get("rob"), board.bonuses, before), 1);
 });
 
 test("bonus points subtract only when the league opted in", () => {
   const rob = byId.get("rob");
-  assert.equal(scoreOf({ ...rob, status: "out", boot: "10th voted out" }, board.bonuses, after, false, board.contestants.length), 12);
-  assert.equal(scoreOf({ ...rob, status: "out", boot: "10th voted out" }, board.bonuses, after, true, board.contestants.length), 10);
+  const shown = Date.parse("2026-10-08T06:00:01.000Z");
+  const booted = { ...rob, status: "out", boot: "10th voted out" };
+  assert.equal(scoreOf(booted, board.bonuses, shown, false, board.contestants.length), 12);
+  assert.equal(scoreOf(booted, board.bonuses, shown, true, board.contestants.length), 10);
 });
 
 test("a team with an unrevealed boot does not count that pick yet", () => {
