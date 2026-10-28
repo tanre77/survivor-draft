@@ -92,6 +92,10 @@ export function nextDrafter<T extends { picks: string[] }>(seats: T[]): T | null
   return seats[snakeSlot(made, seats.length)] ?? null;
 }
 
+export function draftIsFull(seats: { picks: string[] }[]): boolean {
+  return seats.length > 0 && nextDrafter(seats) == null;
+}
+
 export function lastDrafter<T extends { picks: string[] }>(seats: T[]): T | null {
   if (seats.length === 0) return null;
   const made = seats.reduce((sum, seat) => sum + seat.picks.length, 0);

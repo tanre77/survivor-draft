@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { matchupWinner, nextDrafter, pairSeats, snakeSlot, takenBy } from "./custom-leagues.ts";
+import { draftIsFull, matchupWinner, nextDrafter, pairSeats, snakeSlot, takenBy } from "./custom-leagues.ts";
 
 const seats = [
   { id: "a", name: "Elise", picks: ["Joe", "Kyle", "Mitch"] },
@@ -31,6 +31,8 @@ test("the draft stops after three picks each", () => {
     { id: "b", picks: ["d", "e", "f"] },
   ];
   assert.equal(nextDrafter(table), null);
+  assert.equal(draftIsFull(table), true);
+  assert.equal(draftIsFull([{ picks: ["a"] }, { picks: [] }]), false);
   assert.equal(nextDrafter([{ id: "a", picks: ["a"] }, { id: "b", picks: [] }])?.id, "b");
 });
 

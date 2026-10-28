@@ -2,13 +2,14 @@ import { createContext, lazy, Suspense, useContext, useEffect, useId, useMemo, u
 import { ChevronLeft, ChevronRight, Gem, LayoutGrid, ScrollText, Search, UserRound, Users, X } from "lucide-react";
 import { reportError, startDiagnostics } from "@/lib/diagnostics";
 import { LeagueHome } from "@/components/league-home";
-import { lastDrafter, loadCustomLeagues, newId, nextDrafter, rosterKey, saveCustomLeagues, shuffleSeats, takenBy, type CustomLeague } from "@/data/custom-leagues";
+import { draftIsFull, lastDrafter, loadCustomLeagues, newId, nextDrafter, rosterKey, saveCustomLeagues, shuffleSeats, takenBy, type CustomLeague } from "@/data/custom-leagues";
 import type { ImportedSheet } from "@/data/import-sheet";
 import { loadProfile, saveProfile } from "@/data/profile";
+import { notifyTurn } from "@/lib/turn-mail";
 import { applyTheme, watchTheme } from "@/data/theme";
 import { deleteSharedLeague, fetchSharedLeague, normalizeCode, publishSharedLeague, saveSharedLeague, type SharedLeague } from "@/lib/shared-leagues";
 import { fetchWikiBoots } from "@/lib/wiki-live";
-import { alreadyPinged, markPinged, pingTurn, sameName } from "@/lib/turn-alert";
+import { alreadyPinged, markPinged, sameName } from "@/lib/turn-alert";
 import {
   SEAT_KEY,
   contestantBlob,
@@ -95,6 +96,9 @@ export function DraftLeague() {
   const [stack, setStack] = useState<Panel[]>([]);
   const [now, setNow] = useState(() => Date.now());
   const [wikiRev, setWikiRev] = useState(0);
+  const [invited, setInvited] = useState<string | null>(null);
+  const [inviteError, setInviteError] = useState("");
+  const linkHandled = useRef(false);
   const leaguesRef = useRef(leagues);
   leaguesRef.current = leagues;
   const saveFlight = useRef(0);
@@ -109,6 +113,51 @@ export function DraftLeague() {
     applyTheme();
     return watchTheme();
   }, []);
+
+  useEffect(() => {
+    if (!ready || linkHandled.current) return;
+    const params = new URLSearchParams(window.location.search);
+    const raw = params.get("join");
+    if (!raw) return;
+    linkHandled.current = true;
+    const named = (params.get("name") ?? "").trim().slice(0, 40);
+    if (named) {
+      saveProfile({ name: named });
+      setProfileName(named);
+    }
+    const url = new URL(window.location.href);
+    url.searchParams.delete("join");
+    url.searchParams.delete("name");
+    window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+    const code = normalizeCode(raw);
+    void fetchSharedLeague({ data: code })
+      .then(async (shared) => {
+        if (!shared) return;
+        let seats = shared.seats;
+        if (named && !seats.some((seat) => seat.name.toLowerCase() === named.toLowerCase())) {
+          seats = [...seats, { id: newId(), name: named, picks: [] }];
+          const saved = await saveSharedLeague({ data: { ...shared, seats } });
+          seats = saved.seats;
+        }
+        const existing = leaguesRef.current.find((item) => item.code === shared.code || item.id === shared.code);
+        const id = existing?.id ?? shared.code;
+        const next: CustomLeague = {
+          id,
+          name: shared.name,
+          bonus: shared.bonus,
+          trades: shared.trades,
+          drafting: shared.drafting,
+          advanced: shared.advanced,
+          headToHead: shared.headToHead,
+          seats,
+          code: shared.code,
+        };
+        setLeagues((list) => (existing ? list.map((item) => (item.id === id ? next : item)) : [next, ...list]));
+        setCustomSeat(shared.drafting ? null : seats.find((seat) => seat.name.toLowerCase() === named.toLowerCase())?.id ?? null);
+        setPlace({ view: "custom", id });
+      })
+      .catch(() => undefined);
+  }, [ready]);
 
   useEffect(() => {
     function onError(event: ErrorEvent) {
@@ -138,6 +187,7 @@ export function DraftLeague() {
         code: shared.code,
       };
       if (!existing) return [next, ...list];
+      if (existing.drafting === false) next.drafting = false;
       const localMade = existing.seats.reduce((sum, seat) => sum + seat.picks.length, 0);
       const remoteMade = shared.seats.reduce((sum, seat) => sum + seat.picks.length, 0);
       if (localMade > remoteMade) return list;
@@ -177,7 +227,7 @@ export function DraftLeague() {
       );
     }
     void tick();
-    const id = window.setInterval(() => void tick(), 4000);
+    const id = window.setInterval(() => void tick(), 2000);
     return () => {
       stop = true;
       window.clearInterval(id);
@@ -193,8 +243,19 @@ export function DraftLeague() {
       if (!clock || !sameName(clock.name, profileName)) continue;
       const key = `${league.code}:${league.seats.reduce((sum, seat) => sum + seat.picks.length, 0)}`;
       if (alreadyPinged(key)) continue;
-      markPinged(key);
-      pingTurn(league.name, `${clock.name}, you're on the clock.`);
+      const email = loadProfile().email;
+      if (!email) continue;
+      void notifyTurn({
+        data: {
+          code: league.code,
+          league: league.name,
+          drafting: true,
+          origin: window.location.origin,
+          seats: league.seats,
+        },
+      }).then((result) => {
+        if (result.sent) markPinged(key);
+      });
     }
   }, [leagues, profileName, ready]);
 
@@ -246,6 +307,14 @@ export function DraftLeague() {
   const seat = seatId ? managerById(seatId) : null;
   const custom = place.view === "custom" ? leagues.find((l) => l.id === place.id) : undefined;
   const customPerson = custom && customSeat ? custom.seats.find((s) => s.id === customSeat) : undefined;
+
+  useEffect(() => {
+    if (!ready || !custom || custom.drafting === false) return;
+    if (custom.seats.some((seat) => seat.scores != null && seat.scores.length > 0)) return;
+    if (!draftIsFull(custom.seats)) return;
+    setCustomSeat(null);
+    updateLeague({ ...custom, drafting: false });
+  }, [ready, custom]);
 
   function chooseSeat(id: string) {
     localStorage.setItem(SEAT_KEY, id);
@@ -312,6 +381,15 @@ export function DraftLeague() {
     })
       .then((shared) => {
         if (saveFlight.current === flight) applyShared(shared);
+        void notifyTurn({
+          data: {
+            code: shared.code,
+            league: shared.name,
+            drafting: shared.drafting,
+            origin: window.location.origin,
+            seats: shared.seats,
+          },
+        }).catch(() => undefined);
       })
       .catch(() => undefined)
       .finally(() => {
@@ -461,6 +539,8 @@ export function DraftLeague() {
               if (!seat) setChoosing(true);
             }}
             onOpenCustom={(id) => {
+              setInvited(null);
+              setInviteError("");
               setCustomSeat(null);
               setPlace({ view: "custom", id });
             }}
@@ -505,8 +585,12 @@ export function DraftLeague() {
             <CreateLeague
             you={profileName}
             onCancel={() => setPlace({ view: "home" })}
-            onCreate={(league) => {
-              void publishSharedLeague({
+            onCreate={(league, invite) => {
+              if (invite) {
+                setInvited(invite);
+                setInviteError("");
+              }
+              return publishSharedLeague({
                 data: {
                   name: league.name,
                   bonus: league.bonus,
@@ -522,6 +606,7 @@ export function DraftLeague() {
                   setLeagues((list) => [next, ...list]);
                   setCustomSeat(null);
                   setPlace({ view: "custom", id: next.id });
+                  return shared.code;
                 })
                 .catch(() => {
                   setLeagues((list) => [league, ...list]);
@@ -549,9 +634,30 @@ export function DraftLeague() {
           <CustomBoard
             league={custom}
             onOpenSeat={setCustomSeat}
-            onAddSeat={(name) =>
-              updateLeague({ ...custom, seats: [...custom.seats, { id: newId(), name, picks: [] }] })
-            }
+            onAddSeat={(name) => {
+              const seats = [...custom.seats, { id: newId(), name, picks: [] }];
+              const next = { ...custom, seats };
+              setInvited(name);
+              setInviteError("");
+              if (next.code) {
+                updateLeague(next);
+                return;
+              }
+              setLeagues((list) => list.map((league) => (league.id === next.id ? next : league)));
+              void publishSharedLeague({
+                data: {
+                  name: next.name,
+                  bonus: next.bonus,
+                  trades: next.trades,
+                  drafting: next.drafting,
+                  advanced: next.advanced,
+                  headToHead: next.headToHead,
+                  seats: next.seats,
+                },
+              })
+                .then((shared) => updateLeague({ ...next, code: shared.code, seats: shared.seats }))
+                .catch(() => setInviteError("Couldn't make the invite link. Try again."));
+            }}
             onCloseDraft={() => updateLeague({ ...custom, drafting: false })}
             onDelete={() => {
               if (custom.code) void deleteSharedLeague({ data: custom.code }).catch(() => undefined);
@@ -578,6 +684,28 @@ export function DraftLeague() {
               updateLeague({ ...custom, seats: shuffleSeats(custom.seats) });
             }}
             you={profileName}
+            invited={invited}
+            inviteError={inviteError}
+            onDraft={(seatId, picks) => {
+              if (!custom.drafting) return "The draft is closed.";
+              const clock = nextDrafter(custom.seats);
+              if (!clock || clock.id !== seatId) return "It's not your turn.";
+              if (!sameName(clock.name, profileName)) return "Save your name on the You tab so it matches your seat.";
+              if (picks.length !== clock.picks.length + 1 || picks.length > 3) return "Submit one new player.";
+              const added = picks[picks.length - 1];
+              const player = added ? contestantByName(added) : undefined;
+              if (!player || isBootPublic(player)) return "That player is already out.";
+              if (takenBy(custom.seats, picks, [seatId])) return "Another team already has that exact roster.";
+              const shares = custom.seats.reduce((sum, seat) => {
+                if (seat.id === seatId) return sum;
+                return sum + seat.picks.filter((pick) => contestantByName(pick)?.id === player.id).length;
+              }, 0);
+              if (shares >= 4) return "That player is already on 4 teams.";
+              const seats = custom.seats.map((seat) => (seat.id === seatId ? { ...seat, picks } : seat));
+              const done = draftIsFull(seats);
+              updateLeague({ ...custom, seats, drafting: done ? false : custom.drafting });
+              if (done) setCustomSeat(null);
+            }}
           />
           </Later>
         )}
@@ -592,12 +720,13 @@ export function DraftLeague() {
             trades={custom?.trades === true}
             canDraft={!custom?.seats.some((seat) => sameName(seat.name, profileName)) || sameName(customPerson.name, profileName)}
             onChange={(picks) => {
-              if (!custom || !custom.drafting) return;
+              if (!custom || !custom.drafting) return "The draft is closed.";
               const adding = picks.length > customPerson.picks.length;
               const removing = picks.length < customPerson.picks.length;
-              if (adding && (picks.length > 3 || nextDrafter(custom.seats)?.id !== customPerson.id)) return;
-              if (removing && lastDrafter(custom.seats)?.id !== customPerson.id) return;
-              if (takenBy(custom.seats, picks, [customPerson.id])) return;
+              if (adding && picks.length > 3) return "Your team already has 3 picks.";
+              if (adding && nextDrafter(custom.seats)?.id !== customPerson.id) return "It's not your turn.";
+              if (removing && lastDrafter(custom.seats)?.id !== customPerson.id) return "You can only take back the last pick.";
+              if (takenBy(custom.seats, picks, [customPerson.id])) return "Another team already has that exact roster.";
               if (adding) {
                 const added = picks[picks.length - 1];
                 const player = added ? contestantByName(added) : undefined;
@@ -605,12 +734,12 @@ export function DraftLeague() {
                   if (seat.id === customPerson.id) return sum;
                   return sum + seat.picks.filter((pick) => (player ? contestantByName(pick)?.id === player.id : pick.trim().toLowerCase() === added?.trim().toLowerCase())).length;
                 }, 0);
-                if (shares >= 4) return;
+                if (shares >= 4) return "That player is already on 4 teams.";
               }
-              updateLeague({
-                ...custom,
-                seats: custom.seats.map((s) => (s.id === customPerson.id ? { ...s, picks } : s)),
-              });
+              const seats = custom.seats.map((s) => (s.id === customPerson.id ? { ...s, picks } : s));
+              const done = draftIsFull(seats);
+              updateLeague({ ...custom, seats, drafting: done ? false : custom.drafting });
+              if (done) setCustomSeat(null);
             }}
             onTrade={(myIndex, otherId, theirIndex) => {
               if (!custom || !custom.drafting || !custom.trades) return;

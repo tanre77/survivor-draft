@@ -1,8 +1,12 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { lastDrafter, matchupWinner, newId, nextDrafter, pairSeats, rosterKey, seatColors, takenBy, type CustomLeague, type CustomSeat } from "@/data/custom-leagues";
 import { advancedBonus, bonusOf, contestantByName, contestants, displayName, idolCount, isBootPublic, photoSrc, pickPoints, playCount, voteCount, winCount, advantageCount, type Contestant } from "@/data/league";
 import { LeagueChat } from "@/components/league-chat";
-import { alertsGranted, armTurnAlerts, sameName } from "@/lib/turn-alert";
+import { sameName } from "@/lib/turn-alert";
+import { copyText } from "@/lib/copy";
+import { inviteUrl } from "@/data/invite";
+import { loadProfile } from "@/data/profile";
+import { saveTurnAlert, notifyTurn } from "@/lib/turn-mail";
 
 function seatTotalRank(total: string | undefined): number {
   if (!total) return Number.POSITIVE_INFINITY;
@@ -20,7 +24,7 @@ export function CreateLeague({
 }: {
   you: string;
   onCancel: () => void;
-  onCreate: (league: CustomLeague) => void;
+  onCreate: (league: CustomLeague, invite?: string) => Promise<string | void> | void;
 }) {
   const [name, setName] = useState("");
   const [draft, setDraft] = useState("");
@@ -29,6 +33,59 @@ export function CreateLeague({
   const [trades, setTrades] = useState(false);
   const [advanced, setAdvanced] = useState(false);
   const [headToHead, setHeadToHead] = useState(false);
+  const [inviting, setInviting] = useState("");
+  const [inviteNote, setInviteNote] = useState("");
+
+  function roster(): string[] {
+    return you && !people.some((person) => person.toLowerCase() === you.toLowerCase()) ? [you, ...people] : people;
+  }
+
+  function buildLeague(): CustomLeague | null {
+    const names = roster();
+    if (!name.trim() || names.length === 0) return null;
+    return {
+      id: newId(),
+      name: name.trim(),
+      bonus,
+      trades,
+      drafting: true,
+      advanced,
+      headToHead,
+      seats: names.map((person) => ({ id: newId(), name: person, picks: [] })),
+    };
+  }
+
+  async function invitePerson(person: string) {
+    if (!name.trim()) {
+      setInviteNote("Name the league first.");
+      return;
+    }
+    const league = buildLeague();
+    if (!league) return;
+    setInviting(person);
+    setInviteNote("");
+    try {
+      const code = await onCreate(league, person);
+      if (!code || typeof window === "undefined") {
+        setInviteNote("Couldn't make the invite link. Start the league and try Invite there.");
+        return;
+      }
+      const share = inviteUrl(window.location.origin, code, person);
+      await copyText(share);
+      const nav = navigator as Navigator & { share?: (data: { title: string; text: string; url: string }) => Promise<void> };
+      if (nav.share) {
+        await nav
+          .share({ title: `${person} is in ${league.name}`, text: `${person}, you're in ${league.name}. Open this to draft from your phone.`, url: share })
+          .catch(async () => {
+            await copyText(share);
+          });
+      } else {
+        await copyText(share);
+      }
+    } finally {
+      setInviting("");
+    }
+  }
 
   function addPerson() {
     const next = draft.trim();
@@ -92,18 +149,29 @@ export function CreateLeague({
                 <span className="rounded-lg px-3 py-1.5 text-sm font-semibold ring-1 ring-fg/15" style={{ background: color.bg, color: color.fg }}>
                   {person}
                 </span>
-                <button
-                  type="button"
-                  onClick={() => setPeople((list) => list.filter((p) => p !== person))}
-                  className="text-sm font-semibold text-muted"
-                >
-                  Remove
-                </button>
+                <span className="flex shrink-0 items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => void invitePerson(person)}
+                    disabled={inviting !== ""}
+                    className="text-sm font-semibold text-toka disabled:opacity-40"
+                  >
+                    {inviting === person ? "Inviting" : "Invite"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPeople((list) => list.filter((p) => p !== person))}
+                    className="text-sm font-semibold text-muted"
+                  >
+                    Remove
+                  </button>
+                </span>
               </li>
             );
           })}
         </ul>
       )}
+      {inviteNote && <p className="mt-2 text-sm text-boot">{inviteNote}</p>}
 
       <button
         type="button"
@@ -185,19 +253,9 @@ export function CreateLeague({
         type="button"
         disabled={!ready && !(you && name.trim())}
         onClick={() => {
-          void armTurnAlerts();
-          const names = you && !people.some((person) => person.toLowerCase() === you.toLowerCase()) ? [you, ...people] : people;
-          if (!name.trim() || names.length === 0) return;
-          onCreate({
-            id: newId(),
-            name: name.trim(),
-            bonus,
-            trades,
-            drafting: true,
-            advanced,
-            headToHead,
-            seats: names.map((person) => ({ id: newId(), name: person, picks: [] })),
-          });
+          const league = buildLeague();
+          if (!league) return;
+          void onCreate(league);
         }}
         className="mt-6 min-h-12 w-full rounded-2xl bg-ember text-base font-semibold text-ember-ink disabled:opacity-40"
       >
@@ -238,7 +296,10 @@ export function CustomBoard({
   onDelete,
   onInvite,
   onShuffle,
+  onDraft,
   you,
+  invited,
+  inviteError,
 }: {
   league: CustomLeague;
   onOpenSeat: (id: string) => void;
@@ -247,17 +308,87 @@ export function CustomBoard({
   onDelete: () => void;
   onInvite: () => void;
   onShuffle: () => void;
+  onDraft: (seatId: string, picks: string[]) => string | void;
   you: string;
+  invited: string | null;
+  inviteError: string;
 }) {
   const [draft, setDraft] = useState("");
   const [armed, setArmed] = useState(false);
   const [closing, setClosing] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [copyFailed, setCopyFailed] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
   const [alertsOn, setAlertsOn] = useState(false);
+  const [alertNote, setAlertNote] = useState("");
+  const [pickError, setPickError] = useState("");
+  const [choiceId, setChoiceId] = useState<string | null>(null);
+  const origin = typeof window === "undefined" ? "" : window.location.origin;
+  const leagueLink = league.code && origin ? inviteUrl(origin, league.code) : "";
+  const memberLink = invited && league.code && origin ? inviteUrl(origin, league.code, invited) : "";
+  const mine = league.seats.find((seat) => sameName(seat.name, you));
 
-  useEffect(() => {
-    setAlertsOn(alertsGranted());
-  }, []);
+  function timesTaken(player: Contestant): number {
+    return league.seats.reduce(
+      (sum, seat) => sum + seat.picks.filter((pick) => contestantByName(pick)?.id === player.id).length,
+      0,
+    );
+  }
+
+  function draftPlayer(player: Contestant) {
+    if (!clock || !mine || clock.id !== mine.id) {
+      setPickError("It's not your turn.");
+      return;
+    }
+    if (isBootPublic(player)) {
+      setPickError(`${player.first} is already out.`);
+      return;
+    }
+    if (clock.picks.length >= 3) {
+      setPickError("Your team already has 3 picks.");
+      return;
+    }
+    if (clock.picks.some((pick) => contestantByName(pick)?.id === player.id)) {
+      setPickError(`${player.first} is already on your team.`);
+      return;
+    }
+    if (timesTaken(player) >= 4) {
+      setPickError(`${player.first} is already on 4 teams.`);
+      return;
+    }
+    const picks = [...clock.picks, displayName(player)];
+    const owner = takenBy(league.seats, picks, [clock.id]);
+    if (owner) {
+      setPickError(`${owner} already has that exact team.`);
+      return;
+    }
+    const reason = onDraft(clock.id, picks);
+    if (reason) {
+      setPickError(reason);
+      return;
+    }
+    setPickError("");
+    setChoiceId(null);
+  }
+
+  async function shareInvite(name: string) {
+    if (!league.code || !origin) {
+      onInvite();
+      return;
+    }
+    const share = inviteUrl(origin, league.code, name);
+    const copied = await copyText(share);
+    if (copied) {
+      setLinkCopied(true);
+      window.setTimeout(() => setLinkCopied(false), 1500);
+    }
+    const nav = navigator as Navigator & { share?: (data: { title: string; text: string; url: string }) => Promise<void> };
+    if (nav.share) {
+      void nav
+        .share({ title: `${name} is in ${league.name}`, text: `${name}, you're in ${league.name}. Open this to draft from your phone.`, url: share })
+        .catch(() => undefined);
+    }
+  }
 
   function add() {
     const next = draft.trim();
@@ -268,14 +399,30 @@ export function CustomBoard({
     }
     onAddSeat(next);
     setDraft("");
+    if (league.code) shareInvite(next);
   }
 
+  const scored = league.seats.some((seat) => seat.scores != null && seat.scores.length > 0);
   const ranked = [...league.seats].sort((a, b) => {
     if (a.place != null && b.place != null) return a.place - b.place;
     return seatTotalRank(a.total) - seatTotalRank(b.total);
   });
-  const scored = league.seats.some((seat) => seat.scores != null && seat.scores.length > 0);
+  const drafted = !league.drafting && !scored;
+  const standings = scored
+    ? ranked
+    : drafted
+      ? [...league.seats].sort((a, b) => {
+          const left = livePoints(a, league.advanced);
+          const right = livePoints(b, league.advanced);
+          if (left == null && right == null) return 0;
+          if (left == null) return 1;
+          if (right == null) return -1;
+          return left - right;
+        })
+      : league.seats;
   const clock = league.drafting && !scored ? nextDrafter(league.seats) : null;
+  const myTurn = Boolean(clock && mine && clock.id === mine.id);
+  const chosen = myTurn ? contestants.find((player) => player.id === choiceId) : undefined;
   const orderLocked = league.seats.some((seat) => seat.picks.length > 0);
   const rounds = [0, 1, 2].map((round) =>
     league.seats.map((_, slot) => league.seats[round % 2 === 0 ? slot : league.seats.length - 1 - slot].name),
@@ -283,11 +430,15 @@ export function CustomBoard({
 
   return (
     <div>
-      <p className="text-xs font-semibold tracking-widest text-toka">{scored ? "FROM THE SHEET" : "IN PROGRESS"}</p>
+      <p className="text-xs font-semibold tracking-widest text-toka">
+        {scored ? "FROM THE SHEET" : league.drafting ? "IN PROGRESS" : "LEAGUE"}
+      </p>
       <h1 className="mt-1 font-display text-5xl leading-none">{league.name}</h1>
       <p className="mt-2 text-sm text-muted">
         {scored ? (
           "Imported with the sheet’s scores. Lowest total wins."
+        ) : !league.drafting ? (
+          "The draft is in. This is the league. Lowest total wins."
         ) : (
           <>
             Tap a name to open that team.{" "}
@@ -306,34 +457,110 @@ export function CustomBoard({
         <button
           type="button"
           onClick={() => {
-            const share = league.code ?? "";
-            void navigator.clipboard?.writeText(share).catch(() => undefined);
-            setCopied(true);
-            window.setTimeout(() => setCopied(false), 1500);
+            if (!leagueLink) return;
+            void copyText(leagueLink).then((ok) => {
+              setCopied(ok);
+              setCopyFailed(!ok);
+              if (ok) window.setTimeout(() => setCopied(false), 1500);
+            });
           }}
           className="mt-3 flex w-full items-center justify-between rounded-2xl bg-surface px-4 py-3 text-left"
         >
           <span>
-            <span className="block text-xs font-semibold tracking-widest text-toka">INVITE CODE</span>
-            <span className="mt-1 block font-display text-4xl tracking-widest">{`${league.code.slice(0, 3)} ${league.code.slice(3)}`}</span>
+            <span className="block text-xs font-semibold tracking-widest text-toka">INVITE LINK</span>
+            <span className="mt-1 block break-all text-sm">{leagueLink}</span>
+            <span className="mt-1 block font-display text-3xl tracking-widest">{`${league.code.slice(0, 3)} ${league.code.slice(3)}`}</span>
           </span>
-          <span className="text-sm font-semibold text-muted">{copied ? "Copied" : "Copy"}</span>
+          <span className="text-sm font-semibold text-muted">{copied ? "Copied" : copyFailed ? "Not copied" : "Copy link"}</span>
         </button>
       ) : (
         <button type="button" onClick={onInvite} className="mt-3 min-h-12 w-full rounded-2xl bg-surface text-sm font-semibold">
-          Make an invite code
+          Make an invite link
         </button>
       )}
       <button
         type="button"
         onClick={() => {
-          void armTurnAlerts().then(setAlertsOn);
+          const profile = loadProfile();
+          if (!profile.email) {
+            setAlertNote("Add an email on the You tab first.");
+            setAlertsOn(false);
+            return;
+          }
+          if (!you) {
+            setAlertNote("Save your name on the You tab first.");
+            return;
+          }
+          if (!league.code) {
+            setAlertNote("Make an invite link first, then turn alerts on.");
+            onInvite();
+            return;
+          }
+          setAlertNote("");
+          void saveTurnAlert({ data: { code: league.code, name: you, email: profile.email } })
+            .then(() => {
+              setAlertsOn(true);
+              setAlertNote(`We'll email ${profile.email} when it's your turn.`);
+              return notifyTurn({
+                data: {
+                  code: league.code ?? "",
+                  league: league.name,
+                  drafting: league.drafting !== false,
+                  origin: window.location.origin,
+                  seats: league.seats,
+                },
+              });
+            })
+            .catch(() => setAlertNote("Couldn't save that email. Try again."));
         }}
         className="mt-3 min-h-12 w-full rounded-2xl bg-surface px-4 text-sm font-semibold"
       >
-        {alertsOn ? "You'll get an alert on your turn" : "Alert me on my turn"}
+        {alertsOn ? "You'll get an email on your turn" : "Email me on my turn"}
       </button>
+      {alertNote && <p className="mt-2 text-sm text-muted">{alertNote}</p>}
       {!you && <p className="mt-2 text-sm text-muted">Save your name on the You tab. The alert matches that name to a seat.</p>}
+      {league.drafting && (
+        <label className="mt-4 block text-sm font-semibold">
+          Add a person
+          <span className="mt-1 flex gap-2">
+            <input
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  add();
+                }
+              }}
+              className="min-w-0 flex-1 rounded-xl bg-surface-2 px-3 py-3 text-base font-normal"
+              autoComplete="off"
+            />
+            <button type="button" onClick={add} className="min-h-12 rounded-xl bg-fg px-4 text-base font-semibold text-bg">
+              {league.code ? "Add & invite" : "Add"}
+            </button>
+          </span>
+        </label>
+      )}
+      {invited && (
+        <div className="mt-3 rounded-2xl bg-surface px-4 py-3">
+          <p className="text-xs font-semibold tracking-widest text-toka">INVITE FOR {invited.toUpperCase()}</p>
+          {memberLink ? (
+            <>
+              <p className="mt-2 break-all text-sm">{memberLink}</p>
+              <p className="mt-1 text-sm text-muted">Send this to {invited}. Opening it puts them in the draft room.</p>
+              <button
+                type="button"
+                onClick={() => shareInvite(invited)}
+                className="mt-3 min-h-12 w-full rounded-2xl bg-ember text-sm font-semibold text-ember-ink"
+              >
+                {linkCopied ? "Copied" : `Invite ${invited}`}
+              </button>
+            </>
+          ) : (
+            <p className="mt-2 text-sm text-muted">{inviteError || "Making the invite link…"}</p>
+          )}
+        </div>
+      )}
       {league.drafting && !scored && league.seats.length > 1 && (
         <section className="mt-4 rounded-2xl bg-surface p-4">
           <div className="flex items-center justify-between gap-3">
@@ -362,6 +589,83 @@ export function CustomBoard({
           </ol>
           {orderLocked && <p className="mt-2 text-xs text-muted">Order locks after the first pick.</p>}
         </section>
+      )}
+      {league.drafting && !scored && (
+        <section className="mt-4 rounded-2xl bg-surface p-4">
+          <p className="text-xs font-semibold tracking-widest text-toka">DRAFT ROOM</p>
+          <h2 className="mt-1 font-display text-4xl leading-none">
+            {clock ? `${clock.name} is on the clock` : "The board is full"}
+          </h2>
+          <p className="mt-2 text-sm text-muted">
+            Everyone drafts from their own phone. Picks show up here for the whole room.
+            {!league.code ? " Make an invite link so the others can get in." : ""}
+          </p>
+          {!you && <p className="mt-2 text-sm text-muted">Save your name on the You tab. This phone can only draft the seat with that name.</p>}
+          {you && !mine && <p className="mt-2 text-sm text-muted">{you} isn't a seat in this room.</p>}
+          {myTurn && <p className="mt-2 text-sm font-semibold text-toka">Your turn. Choose one player, then submit.</p>}
+          {clock && !myTurn && mine && <p className="mt-2 text-sm text-muted">Waiting on {clock.name}.</p>}
+          {pickError && <p className="mt-2 text-sm font-semibold text-boot">{pickError}</p>}
+          <ul className="mt-3 flex flex-col gap-2">
+            {league.seats.map((seat, index) => (
+              <li key={seat.id} className="flex items-center gap-3 rounded-xl bg-surface-2 px-3 py-2">
+                <button type="button" onClick={() => onOpenSeat(seat.id)} className="min-w-0 flex-1 text-left">
+                  <span className={`block text-sm font-semibold ${clock?.id === seat.id ? "text-toka" : ""}`}>
+                    {index + 1}. {seat.name}
+                    {sameName(seat.name, you) ? " · you" : ""}
+                  </span>
+                  <span className="mt-0.5 block truncate text-sm text-muted">{seat.picks.length === 0 ? "No picks" : seat.picks.join(" · ")}</span>
+                </button>
+                {!sameName(seat.name, you) && (
+                  <button type="button" onClick={() => shareInvite(seat.name)} className="shrink-0 text-sm font-semibold text-toka">
+                    Invite
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+          {myTurn && (
+            <ul className="mt-4 grid grid-cols-3 gap-2 pb-24">
+              {contestants.filter((player) => !isBootPublic(player)).map((player) => {
+                  const owned = clock?.picks.some((pick) => contestantByName(pick)?.id === player.id);
+                  const full = timesTaken(player) >= 4;
+                  const selected = choiceId === player.id;
+                  return (
+                    <li key={player.id}>
+                      <button
+                        type="button"
+                        disabled={owned || full}
+                        aria-pressed={selected}
+                        onClick={() => {
+                          setPickError("");
+                          setChoiceId((current) => (current === player.id ? null : player.id));
+                        }}
+                        className={`w-full overflow-hidden rounded-xl bg-bg text-left disabled:opacity-40 ${selected ? "ring-2 ring-ember" : ""}`}
+                      >
+                        <img src={photoSrc(player.id)} alt="" width={160} height={214} loading="lazy" decoding="async" className="aspect-[3/4] w-full object-cover" />
+                        <span className="block px-2 py-2 text-sm font-semibold leading-tight">
+                          {player.first}
+                          {selected ? <span className="mt-0.5 block text-xs font-semibold text-ember">Your pick</span> : null}
+                          {owned ? <span className="mt-0.5 block text-xs font-semibold text-muted">On your team</span> : null}
+                          {!owned && full ? <span className="mt-0.5 block text-xs font-semibold text-muted">Drafted 4 times</span> : null}
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+          )}
+        </section>
+      )}
+      {chosen && (
+        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-bg px-4 py-3" style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}>
+          <button
+            type="button"
+            onClick={() => draftPlayer(chosen)}
+            className="mx-auto block min-h-12 w-full max-w-5xl rounded-2xl bg-ember text-base font-semibold text-ember-ink"
+          >
+            Submit {chosen.first} to your team
+          </button>
+        </div>
       )}
       {league.headToHead && (
         <section className="mt-4 rounded-2xl bg-surface p-4">
@@ -392,8 +696,9 @@ export function CustomBoard({
         </section>
       )}
       <ul className="mt-4 flex flex-col gap-2">
-        {(scored ? ranked : league.seats).map((seat, index) => {
+        {standings.map((seat, index) => {
           const color = seatColors(seat.name, index);
+          const points = drafted ? livePoints(seat, league.advanced) : null;
           return (
             <li key={seat.id}>
               <button
@@ -406,7 +711,7 @@ export function CustomBoard({
                     {seat.name}
                   </span>
                   {clock?.id === seat.id && <span className="mt-1 block text-xs font-semibold tracking-widest text-toka">ON THE CLOCK</span>}
-                  {scored && seat.picks.length > 0 && (
+                  {(scored || drafted) && seat.picks.length > 0 && (
                     <span className="mt-1 block text-sm text-muted">{seat.picks.join(" · ")}</span>
                   )}
                 </span>
@@ -416,6 +721,8 @@ export function CustomBoard({
                       <span className="block font-display text-3xl leading-none text-fg tabular-nums">{seat.total}</span>
                       {seat.prize ?? (seat.place ? `#${seat.place}` : "")}
                     </>
+                  ) : drafted ? (
+                    <span className="block font-display text-3xl leading-none text-fg tabular-nums">{points ?? "—"}</span>
                   ) : seat.picks.length === 0 ? (
                     "No picks"
                   ) : (
@@ -427,28 +734,6 @@ export function CustomBoard({
           );
         })}
       </ul>
-      {league.drafting && (
-        <label className="mt-4 block text-sm font-semibold">
-        Add a person
-        <span className="mt-1 flex gap-2">
-          <input
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                add();
-              }
-            }}
-            className="min-w-0 flex-1 rounded-xl bg-surface-2 px-3 py-3 text-base font-normal"
-            autoComplete="off"
-          />
-          <button type="button" onClick={add} className="min-h-12 rounded-xl bg-fg px-4 text-base font-semibold text-bg">
-            Add
-          </button>
-        </span>
-      </label>
-      )}
       {league.drafting &&
         (!closing ? (
           <button type="button" onClick={() => setClosing(true)} className="mt-6 text-sm font-semibold text-muted">
@@ -491,11 +776,12 @@ export function CustomTeam({
   drafting: boolean;
   trades: boolean;
   canDraft?: boolean;
-  onChange: (picks: string[]) => void;
+  onChange: (picks: string[]) => string | void;
   onTrade: (myIndex: number, otherId: string, theirIndex: number) => void;
 }) {
   const [deal, setDeal] = useState<{ mine: number; otherId: string | null } | null>(null);
   const [blocked, setBlocked] = useState("");
+  const [choiceId, setChoiceId] = useState<string | null>(null);
   const scored = seat.picks.map((pick) => {
     const player = contestantByName(pick);
     if (!player) return 0;
@@ -522,21 +808,32 @@ export function CustomTeam({
     );
   }
 
-  function add(player: Contestant) {
-    if (!drafting || !myTurn || onTeam(player) || isBootPublic(player)) return;
-    if (seat.picks.length >= 3) return;
+  function add(player: Contestant): boolean {
+    if (!drafting || !myTurn || onTeam(player) || isBootPublic(player)) {
+      setBlocked(myTurn ? "That player can't go on your team." : "It's not your turn.");
+      return false;
+    }
+    if (seat.picks.length >= 3) {
+      setBlocked("Your team already has 3 picks.");
+      return false;
+    }
     if (timesTaken(player) >= 4) {
       setBlocked(`${player.first} is already on 4 teams.`);
-      return;
+      return false;
     }
     const picks = [...seat.picks, displayName(player)];
     const owner = takenBy(seats, picks, [seat.id]);
     if (owner) {
       setBlocked(`${owner} already has that exact team.`);
-      return;
+      return false;
+    }
+    const reason = onChange(picks);
+    if (reason) {
+      setBlocked(reason);
+      return false;
     }
     setBlocked("");
-    onChange(picks);
+    return true;
   }
 
   return (
@@ -682,22 +979,28 @@ export function CustomTeam({
       {drafting && myTurn && (
         <section className="mt-5">
           <h2 className="text-xs font-semibold tracking-widest text-muted">THE CAST</h2>
-          <p className="mt-1 text-sm text-muted">Tap a player to draft them. Anyone already out is off the board.</p>
-          <ul className="mt-3 grid grid-cols-3 gap-2">
+          <p className="mt-1 text-sm text-muted">Choose one player. Submit puts that one name on your team.</p>
+          <ul className="mt-3 grid grid-cols-3 gap-2 pb-24">
             {contestants.filter((player) => !isBootPublic(player)).map((player) => {
               const mine = onTeam(player);
               const full = timesTaken(player) >= 4;
+              const selected = choiceId === player.id;
               return (
                 <li key={player.id}>
                   <button
                     type="button"
                     disabled={mine || full}
-                    onClick={() => add(player)}
-                    className="w-full overflow-hidden rounded-xl bg-surface text-left disabled:opacity-40"
+                    aria-pressed={selected}
+                    onClick={() => {
+                      setBlocked("");
+                      setChoiceId((current) => (current === player.id ? null : player.id));
+                    }}
+                    className={`w-full overflow-hidden rounded-xl bg-surface text-left disabled:opacity-40 ${selected ? "ring-2 ring-ember" : ""}`}
                   >
                     <img src={photoSrc(player.id)} alt="" width={160} height={214} loading="lazy" decoding="async" className="aspect-[3/4] w-full object-cover" />
                     <span className="block px-2 py-2 text-sm font-semibold leading-tight">
                       {player.first}
+                      {selected ? <span className="mt-0.5 block text-xs font-semibold text-ember">Your pick</span> : null}
                       {mine ? <span className="mt-0.5 block text-xs font-semibold text-muted">On your team</span> : null}
                       {!mine && full ? <span className="mt-0.5 block text-xs font-semibold text-muted">Drafted 4 times</span> : null}
                     </span>
@@ -707,6 +1010,21 @@ export function CustomTeam({
             })}
           </ul>
         </section>
+      )}
+      {drafting && myTurn && choiceId && (
+        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-bg px-4 py-3" style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}>
+          <button
+            type="button"
+            onClick={() => {
+              const player = contestants.find((item) => item.id === choiceId);
+              if (!player) return;
+              if (add(player)) setChoiceId(null);
+            }}
+            className="mx-auto block min-h-12 w-full max-w-5xl rounded-2xl bg-ember text-base font-semibold text-ember-ink"
+          >
+            Submit {contestants.find((item) => item.id === choiceId)?.first ?? "pick"} to your team
+          </button>
+        </div>
       )}
     </div>
   );

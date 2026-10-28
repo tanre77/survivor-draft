@@ -2,7 +2,7 @@ import { useState, type FormEvent } from "react";
 import { eraseCustomLeagues, nextDrafter, type CustomLeague } from "@/data/custom-leagues";
 import { eraseProfile } from "@/data/profile";
 import { SEAT_KEY } from "@/data/league";
-import { armTurnAlerts, sameName } from "@/lib/turn-alert";
+import { sameName } from "@/lib/turn-alert";
 
 export function LeagueHome({
   leagues,
@@ -39,7 +39,6 @@ export function LeagueHome({
 
   async function join(event: FormEvent) {
     event.preventDefault();
-    void armTurnAlerts();
     const name = (profileName || joinName).trim();
     if (!name) {
       setJoinError("Put your name in first.");

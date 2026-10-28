@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { CustomLeague } from "@/data/custom-leagues";
-import { loadProfile, saveProfile } from "@/data/profile";
+import { loadProfile, normalizeEmail, saveProfile } from "@/data/profile";
 import { profileLines } from "@/data/profile-lines";
 import { loadTheme, saveTheme, type ThemeChoice } from "@/data/theme";
 
@@ -13,14 +13,19 @@ const APPEARANCE: { id: ThemeChoice; label: string }[] = [
 export function ProfileBoard({ leagues, onName }: { leagues: CustomLeague[]; onName: (name: string) => void }) {
   const [name, setName] = useState(() => loadProfile().name);
   const [draft, setDraft] = useState(name);
+  const [email, setEmail] = useState(() => loadProfile().email);
+  const [emailDraft, setEmailDraft] = useState(email);
   const [theme, setTheme] = useState<ThemeChoice>(() => loadTheme());
   const lines = profileLines(name, leagues);
 
   function save(next: string) {
     const trimmed = next.trim();
-    saveProfile({ name: trimmed });
+    const savedEmail = normalizeEmail(emailDraft);
+    saveProfile({ name: trimmed, email: emailDraft });
     setName(trimmed);
     setDraft(trimmed);
+    setEmail(savedEmail);
+    setEmailDraft(savedEmail);
     onName(trimmed);
   }
 
@@ -49,6 +54,20 @@ export function ProfileBoard({ leagues, onName }: { leagues: CustomLeague[]; onN
           Save
         </button>
       </form>
+      <label className="mt-4 block text-sm font-semibold">
+        Email for turn alerts
+        <input
+          value={emailDraft}
+          onChange={(event) => setEmailDraft(event.target.value)}
+          placeholder="you@email.com"
+          autoComplete="email"
+          inputMode="email"
+          className="mt-1 w-full rounded-xl bg-surface-2 px-3 py-3 text-base font-normal"
+        />
+      </label>
+      <p className="mt-2 text-sm text-muted">
+        {email ? `Turn alerts go to ${email}.` : "Add an email and we'll mail you when it's your pick."}
+      </p>
 
       <p className="mt-8 text-xs font-semibold tracking-widest text-muted">APPEARANCE</p>
       <div className="mt-2 grid grid-cols-3 gap-2" role="group" aria-label="Appearance">
