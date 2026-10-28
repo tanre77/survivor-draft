@@ -2,10 +2,18 @@ import { useState } from "react";
 import type { CustomLeague } from "@/data/custom-leagues";
 import { loadProfile, saveProfile } from "@/data/profile";
 import { profileLines } from "@/data/profile-lines";
+import { loadTheme, saveTheme, type ThemeChoice } from "@/data/theme";
+
+const APPEARANCE: { id: ThemeChoice; label: string }[] = [
+  { id: "system", label: "System" },
+  { id: "dark", label: "Dark" },
+  { id: "light", label: "Light" },
+];
 
 export function ProfileBoard({ leagues, onName }: { leagues: CustomLeague[]; onName: (name: string) => void }) {
   const [name, setName] = useState(() => loadProfile().name);
   const [draft, setDraft] = useState(name);
+  const [theme, setTheme] = useState<ThemeChoice>(() => loadTheme());
   const lines = profileLines(name, leagues);
 
   function save(next: string) {
@@ -41,6 +49,24 @@ export function ProfileBoard({ leagues, onName }: { leagues: CustomLeague[]; onN
           Save
         </button>
       </form>
+
+      <p className="mt-8 text-xs font-semibold tracking-widest text-muted">APPEARANCE</p>
+      <div className="mt-2 grid grid-cols-3 gap-2" role="group" aria-label="Appearance">
+        {APPEARANCE.map((choice) => (
+          <button
+            key={choice.id}
+            type="button"
+            aria-pressed={theme === choice.id}
+            onClick={() => {
+              saveTheme(choice.id);
+              setTheme(choice.id);
+            }}
+            className={`min-h-12 rounded-xl text-sm font-semibold ${theme === choice.id ? "bg-toka text-toka-ink" : "bg-surface text-fg"}`}
+          >
+            {choice.label}
+          </button>
+        ))}
+      </div>
 
       {name && lines.length === 0 && (
         <p className="mt-6 text-sm text-muted">No league has {name} yet. Join one with a code, or start a league and you’ll be in it.</p>

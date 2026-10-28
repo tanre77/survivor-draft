@@ -326,7 +326,7 @@ function NameChip({ name }: { name: string }) {
   }
   return (
     <span
-      className="inline-flex shrink-0 items-center rounded-lg px-2 py-1 text-sm font-semibold"
+      className="inline-flex shrink-0 items-center rounded-lg px-2 py-1 text-sm font-semibold ring-1 ring-fg/15"
       style={{ background: known.bg, color: known.fg }}
     >
       {name}

@@ -89,7 +89,7 @@ export function CreateLeague({
             const color = seatColors(person, index);
             return (
               <li key={person} className="flex items-center justify-between gap-3">
-                <span className="rounded-lg px-3 py-1.5 text-sm font-semibold" style={{ background: color.bg, color: color.fg }}>
+                <span className="rounded-lg px-3 py-1.5 text-sm font-semibold ring-1 ring-fg/15" style={{ background: color.bg, color: color.fg }}>
                   {person}
                 </span>
                 <button
@@ -402,7 +402,7 @@ export function CustomBoard({
                 className="flex w-full items-center justify-between gap-3 rounded-2xl bg-surface px-3 py-3 text-left"
               >
                 <span>
-                  <span className="rounded-lg px-3 py-1.5 text-sm font-semibold" style={{ background: color.bg, color: color.fg }}>
+                  <span className="rounded-lg px-3 py-1.5 text-sm font-semibold ring-1 ring-fg/15" style={{ background: color.bg, color: color.fg }}>
                     {seat.name}
                   </span>
                   {clock?.id === seat.id && <span className="mt-1 block text-xs font-semibold tracking-widest text-toka">ON THE CLOCK</span>}

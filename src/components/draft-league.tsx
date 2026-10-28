@@ -5,6 +5,7 @@ import { LeagueHome } from "@/components/league-home";
 import { lastDrafter, loadCustomLeagues, newId, nextDrafter, rosterKey, saveCustomLeagues, shuffleSeats, takenBy, type CustomLeague } from "@/data/custom-leagues";
 import type { ImportedSheet } from "@/data/import-sheet";
 import { loadProfile, saveProfile } from "@/data/profile";
+import { applyTheme, watchTheme } from "@/data/theme";
 import { deleteSharedLeague, fetchSharedLeague, normalizeCode, publishSharedLeague, saveSharedLeague, type SharedLeague } from "@/lib/shared-leagues";
 import { fetchWikiBoots } from "@/lib/wiki-live";
 import { alreadyPinged, markPinged, pingTurn, sameName } from "@/lib/turn-alert";
@@ -105,6 +106,8 @@ export function DraftLeague() {
     setProfileName(loadProfile().name);
     setReady(true);
     startDiagnostics();
+    applyTheme();
+    return watchTheme();
   }, []);
 
   useEffect(() => {
@@ -403,7 +406,7 @@ export function DraftLeague() {
                 <button
                   type="button"
                   onClick={() => openTeam(seat.id)}
-                  className="rounded-xl px-3 py-2 text-sm font-semibold"
+                  className="rounded-xl px-3 py-2 text-sm font-semibold ring-1 ring-fg/15"
                   style={{ background: seat.bg, color: seat.fg }}
                 >
                   {seat.name}
@@ -797,7 +800,7 @@ function Gate({ onPick, onCancel }: { onPick: (id: string) => void; onCancel?: (
             <button
               type="button"
               onClick={() => onPick(m.id)}
-              className="flex min-h-12 w-full items-center justify-center rounded-xl text-base font-semibold"
+              className="flex min-h-12 w-full items-center justify-center rounded-xl text-base font-semibold ring-1 ring-fg/15"
               style={{ background: m.bg, color: m.fg }}
             >
               {m.name}
@@ -941,7 +944,7 @@ function LeagueBoard({
               <button
                 type="button"
                 onClick={() => onOpenManager(m.id)}
-                className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm font-semibold"
+                className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm font-semibold ring-1 ring-fg/15"
                 style={{ background: m.bg, color: m.fg }}
               >
                 {m.name}
@@ -1106,7 +1109,7 @@ function Roster({
               return (
                 <li key={id}>
                   <button type="button" onClick={() => onOpenManager(id)} className="flex w-full items-center justify-between gap-3 text-left">
-                    <span className="rounded-lg px-2 py-1 font-semibold" style={{ background: m.bg, color: m.fg }}>
+                    <span className="rounded-lg px-2 py-1 font-semibold ring-1 ring-fg/15" style={{ background: m.bg, color: m.fg }}>
                       {m.name}
                     </span>
                     <span className="text-right text-sm">
@@ -1306,7 +1309,7 @@ function PlayerBody({
           return (
             <li key={m.id}>
               <button type="button" onClick={() => onOpenManager(m.id)} className="flex w-full items-center justify-between gap-3 text-left">
-                <span className="rounded-lg px-3 py-1.5 text-sm font-semibold" style={{ background: m.bg, color: m.fg }}>
+                <span className="rounded-lg px-3 py-1.5 text-sm font-semibold ring-1 ring-fg/15" style={{ background: m.bg, color: m.fg }}>
                   {m.name}
                 </span>
                 <span className="text-sm text-muted">Pick {n + 1}</span>
