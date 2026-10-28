@@ -782,32 +782,46 @@ function Gate({ onPick, onCancel }: { onPick: (id: string) => void; onCancel?: (
   );
 }
 
-function bootRank(boot?: string): number {
-  const match = boot?.match(/^(\d+)/);
+function bootDay(boot?: string): number {
+  const match = boot?.match(/day\s+(\d+)/i);
+  return match ? Number(match[1]) : 0;
+}
+
+function votedOutOrder(boot?: string): number {
+  const match = boot?.match(/(\d+)(?:st|nd|rd|th) voted out/i);
   return match ? Number(match[1]) : 0;
 }
 
 function BootCallout({ onOpenPlayer }: { onOpenPlayer: (id: string) => void }) {
   const now = useNow();
-  const latest = contestants
-    .filter((c) => isBootPublic(c, now))
-    .sort((a, b) => bootRank(b.boot) - bootRank(a.boot))[0];
-  if (!latest) return null;
-  const owners = ownersOf(latest.id);
-  const points = pickPoints(latest, now);
+  const gone = contestants.filter((c) => isBootPublic(c, now) && bootDay(c.boot) > 0);
+  const day = Math.max(0, ...gone.map((c) => bootDay(c.boot)));
+  const latest = gone.filter((c) => bootDay(c.boot) === day).sort((a, b) => votedOutOrder(a.boot) - votedOutOrder(b.boot));
+  if (latest.length === 0) return null;
+  const title = latest.length === 1 ? `${latest[0].first} is out` : `${nameList(latest.map((c) => c.first))} are out`;
   return (
     <div className="mb-4 rounded-2xl bg-boot/15 px-4 py-4">
-      <button type="button" onClick={() => onOpenPlayer(latest.id)} className="text-left">
-        <p className="font-display text-3xl leading-none text-boot">{latest.first} is out</p>
-        <p className="mt-2 text-sm text-fg">
-          {latest.boot}
-          {points != null ? `. That’s ${points} points.` : "."}{" "}
-          {owners.length === 0
-            ? `Nobody drafted ${latest.first}.`
-            : `Drafted by ${nameList(owners.map((m) => m.name))}.`}
-        </p>
-        <p className="mt-3 text-sm font-semibold text-boot">Open {latest.first}'s card</p>
-      </button>
+      <p className="font-display text-3xl leading-none text-boot">{title}</p>
+      <ul className="mt-3 flex flex-col gap-3">
+        {latest.map((player) => {
+          const owners = ownersOf(player.id);
+          const points = pickPoints(player, now);
+          return (
+            <li key={player.id}>
+              <button type="button" onClick={() => onOpenPlayer(player.id)} className="text-left">
+                <p className="text-sm text-fg">
+                  <span className="font-semibold">{player.first}.</span> {player.boot}
+                  {points != null ? `. That’s ${points} points.` : "."}{" "}
+                  {owners.length === 0
+                    ? `Nobody drafted ${player.first}.`
+                    : `Drafted by ${nameList(owners.map((m) => m.name))}.`}
+                </p>
+                <p className="mt-1 text-sm font-semibold text-boot">Open {player.first}'s card</p>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }
@@ -1232,7 +1246,7 @@ function PlayerBody({
                 ? "Exiled. Did not vote."
                 : null;
           return (
-            <li key={row.tribal.day} className="rounded-xl bg-surface-2 px-3 py-3 text-sm">
+            <li key={`${row.tribal.day}-${row.tribal.tribe}`} className="rounded-xl bg-surface-2 px-3 py-3 text-sm">
               <p className="text-xs font-semibold tracking-widest text-muted">
                 DAY {row.tribal.day} · {row.tribal.tribe.toUpperCase()} · {row.tribal.tally}
               </p>

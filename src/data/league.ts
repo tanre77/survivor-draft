@@ -544,6 +544,33 @@ export const tribals: Tribal[] = [
       { voter: "jenna", for: "alexis" },
     ],
   },
+  {
+    day: 10,
+    tribe: "savu",
+    boot: "alexis",
+    tally: "3–1",
+    revealAt: "2026-10-22T06:00:00.000Z",
+    votes: [
+      { voter: "devin", for: "alexis" },
+      { voter: "jelly", for: "alexis" },
+      { voter: "ori", for: "alexis" },
+      { voter: "alexis", for: "devin" },
+    ],
+  },
+  {
+    day: 10,
+    tribe: "dina",
+    boot: "linnea",
+    tally: "4–4, then 4–0",
+    revealAt: "2026-10-22T06:00:00.000Z",
+    votes: [
+      { voter: "cristian", for: "linnea" },
+      { voter: "eric", for: "linnea" },
+      { voter: "kilby", for: "linnea" },
+      { voter: "sharonda", for: "linnea" },
+      { voter: "linnea", for: "lewis" },
+    ],
+  },
 ];
 
 export function visibleTribals(now = Date.now()): Tribal[] {
