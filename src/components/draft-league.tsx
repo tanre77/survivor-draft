@@ -1,7 +1,7 @@
 import { createContext, lazy, Suspense, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { ChevronLeft, ChevronRight, Gem, LayoutGrid, ScrollText, Search, UserRound, Users, X } from "lucide-react";
 import { reportError, startDiagnostics } from "@/lib/diagnostics";
-import { CreateLeague, CustomBoard, CustomTeam, LeagueHome } from "@/components/league-home";
+import { LeagueHome } from "@/components/league-home";
 import { lastDrafter, loadCustomLeagues, newId, nextDrafter, rosterKey, saveCustomLeagues, shuffleSeats, takenBy, type CustomLeague } from "@/data/custom-leagues";
 import type { ImportedSheet } from "@/data/import-sheet";
 import { loadProfile, saveProfile } from "@/data/profile";
@@ -17,6 +17,7 @@ import {
   displayName,
   idolCount,
   isBootPublic,
+  latestBoots,
   managerById,
   managers,
   nameList,
@@ -43,6 +44,9 @@ const HistoryBoard = lazy(() => import("@/components/archive").then((mod) => ({ 
 const PastTeam = lazy(() => import("@/components/archive").then((mod) => ({ default: mod.PastTeam })));
 const RulesBoard = lazy(() => import("@/components/archive").then((mod) => ({ default: mod.RulesBoard })));
 const SeasonPage = lazy(() => import("@/components/archive").then((mod) => ({ default: mod.SeasonPage })));
+const CreateLeague = lazy(() => import("@/components/custom-league").then((mod) => ({ default: mod.CreateLeague })));
+const CustomBoard = lazy(() => import("@/components/custom-league").then((mod) => ({ default: mod.CustomBoard })));
+const CustomTeam = lazy(() => import("@/components/custom-league").then((mod) => ({ default: mod.CustomTeam })));
 
 function Later({ children }: { children: ReactNode }) {
   return <Suspense fallback={<p className="py-8 text-sm text-muted">Loading…</p>}>{children}</Suspense>;
@@ -151,6 +155,10 @@ export function DraftLeague() {
 
   useEffect(() => {
     if (!ready) return;
+    const syncing = leagues.some(
+      (league) => league.code && league.drafting !== false && !league.seats.some((seat) => seat.scores != null && seat.scores.length > 0),
+    );
+    if (!syncing) return;
     let stop = false;
     async function tick() {
       if (stop || document.visibilityState === "hidden") return;
@@ -171,7 +179,7 @@ export function DraftLeague() {
       stop = true;
       window.clearInterval(id);
     };
-  }, [ready]);
+  }, [ready, leagues]);
 
   useEffect(() => {
     if (!ready || !profileName.trim()) return;
@@ -199,8 +207,10 @@ export function DraftLeague() {
 
   useEffect(() => {
     let cancel = false;
-    void fetchWikiBoots()
-      .then((boots) => {
+    async function pull() {
+      if (cancel || document.visibilityState === "hidden") return;
+      try {
+        const boots = await fetchWikiBoots();
         if (cancel) return;
         let changed = false;
         for (const boot of boots) {
@@ -212,10 +222,21 @@ export function DraftLeague() {
           changed = true;
         }
         if (changed) setWikiRev((rev) => rev + 1);
-      })
-      .catch(() => undefined);
+      } catch {
+        /* keep the board already on screen */
+      }
+    }
+    const start = window.setTimeout(() => void pull(), 1200);
+    const id = window.setInterval(() => void pull(), 10 * 60 * 1000);
+    function onShow() {
+      if (document.visibilityState === "visible") void pull();
+    }
+    document.addEventListener("visibilitychange", onShow);
     return () => {
       cancel = true;
+      window.clearTimeout(start);
+      window.clearInterval(id);
+      document.removeEventListener("visibilitychange", onShow);
     };
   }, []);
 
@@ -477,7 +498,8 @@ export function DraftLeague() {
           </Later>
         )}
         {place.view === "make" && (
-          <CreateLeague
+          <Later>
+            <CreateLeague
             you={profileName}
             onCancel={() => setPlace({ view: "home" })}
             onCreate={(league) => {
@@ -505,6 +527,7 @@ export function DraftLeague() {
                 });
             }}
           />
+          </Later>
         )}
         {place.view === "import" && (
           <Later>
@@ -519,6 +542,7 @@ export function DraftLeague() {
           </Later>
         )}
         {place.view === "custom" && custom && !customPerson && (
+          <Later>
           <CustomBoard
             league={custom}
             onOpenSeat={setCustomSeat}
@@ -552,8 +576,10 @@ export function DraftLeague() {
             }}
             you={profileName}
           />
+          </Later>
         )}
         {customPerson && (
+          <Later>
           <CustomTeam
             seat={customPerson}
             seats={custom?.seats ?? []}
@@ -608,6 +634,7 @@ export function DraftLeague() {
               });
             }}
           />
+          </Later>
         )}
         {place.view === "past" && !pastTeam && (
           <Later>
@@ -782,21 +809,9 @@ function Gate({ onPick, onCancel }: { onPick: (id: string) => void; onCancel?: (
   );
 }
 
-function bootDay(boot?: string): number {
-  const match = boot?.match(/day\s+(\d+)/i);
-  return match ? Number(match[1]) : 0;
-}
-
-function votedOutOrder(boot?: string): number {
-  const match = boot?.match(/(\d+)(?:st|nd|rd|th) voted out/i);
-  return match ? Number(match[1]) : 0;
-}
-
 function BootCallout({ onOpenPlayer }: { onOpenPlayer: (id: string) => void }) {
   const now = useNow();
-  const gone = contestants.filter((c) => isBootPublic(c, now) && bootDay(c.boot) > 0);
-  const day = Math.max(0, ...gone.map((c) => bootDay(c.boot)));
-  const latest = gone.filter((c) => bootDay(c.boot) === day).sort((a, b) => votedOutOrder(a.boot) - votedOutOrder(b.boot));
+  const latest = latestBoots(contestants, now);
   if (latest.length === 0) return null;
   const title = latest.length === 1 ? `${latest[0].first} is out` : `${nameList(latest.map((c) => c.first))} are out`;
   return (

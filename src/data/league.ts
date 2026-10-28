@@ -446,6 +446,23 @@ export function ordinal(place: number): string {
   if (place % 10 === 3) return `${place}rd`;
   return `${place}th`;
 }
+export function bootDay(boot?: string): number {
+  const match = boot?.match(/day\s+(\d+)/i);
+  return match ? Number(match[1]) : 0;
+}
+
+function votedOutOrder(boot?: string): number {
+  const match = boot?.match(/(\d+)(?:st|nd|rd|th) voted out/i);
+  return match ? Number(match[1]) : 0;
+}
+
+/** The people who left on the latest public night. A quit's finish place does not outrank a later vote. */
+export function latestBoots(list: readonly Contestant[] = contestants, now = Date.now()): Contestant[] {
+  const gone = list.filter((c) => isBootPublic(c, now) && bootDay(c.boot) > 0);
+  const day = Math.max(0, ...gone.map((c) => bootDay(c.boot)));
+  return gone.filter((c) => bootDay(c.boot) === day).sort((a, b) => votedOutOrder(a.boot) - votedOutOrder(b.boot));
+}
+
 export function pickPoints(c: Contestant, now = Date.now()): number | null {
   if (!isBootPublic(c, now)) return null;
   return finishPoints(c.boot);
