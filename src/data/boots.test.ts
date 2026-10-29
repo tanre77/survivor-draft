@@ -10,6 +10,13 @@ test("the latest night is the card, not the highest finish place", () => {
   assert.equal(pickPoints(latest[1], now), 16);
 });
 
+test("Ori is the card after episode 6 ends", () => {
+  const now = Date.parse("2026-10-29T02:00:00.000Z");
+  const latest = latestBoots(undefined, now);
+  assert.deepEqual(latest.map((player) => player.id), ["ori"]);
+  assert.equal(pickPoints(latest[0], now), 15);
+});
+
 test("a boot stays off the card until its reveal", () => {
   const before = Date.parse("2026-10-22T05:59:00.000Z");
   const latest = latestBoots(undefined, before);

@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { eraseCustomLeagues, nextDrafter, type CustomLeague } from "@/data/custom-leagues";
+import { eraseCustomLeagues, leagueStillOpen, nextDrafter, type CustomLeague } from "@/data/custom-leagues";
 import { eraseProfile } from "@/data/profile";
 import { SEAT_KEY } from "@/data/league";
 import { sameName } from "@/lib/turn-alert";
@@ -29,6 +29,7 @@ export function LeagueHome({
   const [joining, setJoining] = useState(false);
   const [joinError, setJoinError] = useState("");
   const [joinName, setJoinName] = useState(profileName);
+  const [board, setBoard] = useState<"open" | "done">("open");
 
   function eraseDevice() {
     eraseCustomLeagues();
@@ -62,7 +63,7 @@ export function LeagueHome({
       <p className="text-xs font-semibold tracking-widest text-muted">SURVIVOR</p>
       <h1 className="mt-1 font-display text-5xl leading-none">Fantasy Draft</h1>
       <p className="mt-2 max-w-prose text-sm text-muted">
-        Survivor 51 is the one in progress. Finished seasons stay on the sheet.
+        Leagues you start stay under In progress until the draft is finished.
       </p>
       <div className="mt-5 flex gap-2">
         <button type="button" onClick={onCreate} className="min-h-12 flex-1 rounded-2xl bg-ember text-base font-semibold text-ember-ink">
@@ -98,36 +99,70 @@ export function LeagueHome({
         {joinError && <p className="text-sm text-boot">{joinError}</p>}
       </form>
 
-      <h2 className="mt-6 text-xs font-semibold tracking-widest text-toka">IN PROGRESS</h2>
-      <ul className="mt-2 flex flex-col gap-2">
-        <li>
-          <button type="button" onClick={onOpenLive} className="w-full rounded-2xl bg-surface px-4 py-4 text-left">
-            <span className="text-xs font-semibold tracking-widest text-toka">LIVE</span>
-            <span className="mt-1 block font-display text-4xl leading-none">Survivor 51</span>
-            <span className="mt-1 block text-sm text-muted">23 seats · Fiji</span>
+      <div className="mt-6 flex gap-2" role="tablist" aria-label="Leagues">
+        {(
+          [
+            ["open", "In progress"],
+            ["done", "Finished"],
+          ] as const
+        ).map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            aria-selected={board === id}
+            onClick={() => setBoard(id)}
+            className={`rounded-full px-3 py-1.5 text-sm font-semibold ${board === id ? "bg-toka text-toka-ink" : "bg-surface text-muted"}`}
+          >
+            {label}
           </button>
-        </li>
-        {leagues.map((league) => {
-          const scoredSheet = league.seats.some((seat) => seat.scores != null && seat.scores.length > 0);
-          const clock = !scoredSheet && league.drafting !== false ? nextDrafter(league.seats) : null;
-          const yours = Boolean(clock && sameName(clock.name, profileName));
-          return (
-          <li key={league.id}>
-            <button type="button" onClick={() => onOpenCustom(league.id)} className="w-full rounded-2xl bg-surface px-4 py-4 text-left">
-              <span className={`text-xs font-semibold tracking-widest ${yours ? "text-ember" : "text-toka"}`}>
-                {yours ? "YOUR TURN" : scoredSheet ? "SCORED" : "IN PROGRESS"}
-              </span>
-              <span className="mt-1 block font-display text-4xl leading-none">{league.name}</span>
-              <span className="mt-1 block text-sm text-muted">
-                {yours ? `${clock?.name} is on the clock` : `${league.seats.length} ${league.seats.length === 1 ? "person" : "people"}`}
-                {league.trades ? " · trades" : ""}
-                {league.bonus ? " · bonus" : ""}
-              </span>
+        ))}
+      </div>
+      {board === "open" ? (
+        <ul className="mt-3 flex flex-col gap-2">
+          <li>
+            <button type="button" onClick={onOpenLive} className="w-full rounded-2xl bg-surface px-4 py-4 text-left">
+              <span className="text-xs font-semibold tracking-widest text-toka">IN PROGRESS</span>
+              <span className="mt-1 block font-display text-4xl leading-none">Survivor 51</span>
+              <span className="mt-1 block text-sm text-muted">23 seats · Fiji</span>
             </button>
           </li>
-          );
-        })}
-      </ul>
+          {leagues.filter((league) => leagueStillOpen(league)).map((league) => {
+            const clock = nextDrafter(league.seats);
+            const yours = Boolean(clock && sameName(clock.name, profileName));
+            return (
+              <li key={league.id}>
+                <button type="button" onClick={() => onOpenCustom(league.id)} className="w-full rounded-2xl bg-surface px-4 py-4 text-left">
+                  <span className={`text-xs font-semibold tracking-widest ${yours ? "text-ember" : "text-toka"}`}>
+                    {yours ? "YOUR TURN" : "IN PROGRESS"}
+                  </span>
+                  <span className="mt-1 block font-display text-4xl leading-none">{league.name}</span>
+                  <span className="mt-1 block text-sm text-muted">
+                    {yours ? `${clock?.name} is on the clock` : `${league.seats.length} ${league.seats.length === 1 ? "person" : "people"}`}
+                    {league.trades ? " · trades" : ""}
+                    {league.bonus ? " · bonus" : ""}
+                  </span>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      ) : (
+        <ul className="mt-3 flex flex-col gap-2">
+          {leagues.filter((league) => !leagueStillOpen(league)).length === 0 && (
+            <li className="text-sm text-muted">Finished seasons and closed drafts show up here.</li>
+          )}
+          {leagues.filter((league) => !leagueStillOpen(league)).map((league) => (
+            <li key={league.id}>
+              <button type="button" onClick={() => onOpenCustom(league.id)} className="w-full rounded-2xl bg-surface px-4 py-4 text-left">
+                <span className="text-xs font-semibold tracking-widest text-toka">FINISHED</span>
+                <span className="mt-1 block font-display text-4xl leading-none">{league.name}</span>
+                <span className="mt-1 block text-sm text-muted">{league.seats.length} {league.seats.length === 1 ? "person" : "people"}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
 
       <div className="mt-8 rounded-2xl bg-surface px-4 py-4">
         <button type="button" onClick={() => setLegal((open) => !open)} className="text-sm font-semibold">

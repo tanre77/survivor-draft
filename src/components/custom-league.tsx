@@ -1,11 +1,11 @@
 import { useState } from "react";
-import { lastDrafter, matchupWinner, newId, nextDrafter, pairSeats, rosterKey, seatColors, takenBy, type CustomLeague, type CustomSeat } from "@/data/custom-leagues";
+import { lastDrafter, matchupWinner, newId, nextDrafter, pairSeats, rosterKey, seatColors, takenBy, type CustomLeague, type CustomSeat, type SeatReach } from "@/data/custom-leagues";
 import { advancedBonus, bonusOf, contestantByName, contestants, displayName, idolCount, isBootPublic, photoSrc, pickPoints, playCount, voteCount, winCount, advantageCount, type Contestant } from "@/data/league";
 import { LeagueChat } from "@/components/league-chat";
 import { sameName } from "@/lib/turn-alert";
 import { copyText } from "@/lib/copy";
 import { inviteUrl } from "@/data/invite";
-import { loadProfile } from "@/data/profile";
+import { loadProfile, normalizeEmail } from "@/data/profile";
 import { saveTurnAlert, notifyTurn } from "@/lib/turn-mail";
 
 function seatTotalRank(total: string | undefined): number {
@@ -15,6 +15,52 @@ function seatTotalRank(total: string | undefined): number {
   const value = Number(match[0]);
   const mark = total.includes("+") ? -0.2 : /[−-]/.test(total) ? 0.2 : 0;
   return value + mark;
+}
+
+const REACH: { id: SeatReach["kind"]; label: string; placeholder: string }[] = [
+  { id: "email", label: "Email", placeholder: "you@email.com" },
+  { id: "google", label: "Google", placeholder: "Google account email" },
+  { id: "twitter", label: "Twitter", placeholder: "@handle" },
+];
+
+function ReachPicker({
+  kind,
+  value,
+  onKind,
+  onValue,
+}: {
+  kind: SeatReach["kind"];
+  value: string;
+  onKind: (kind: SeatReach["kind"]) => void;
+  onValue: (value: string) => void;
+}) {
+  const field = REACH.find((item) => item.id === kind) ?? REACH[0];
+  return (
+    <div className="mt-3">
+      <p className="text-sm font-semibold">How to reach them</p>
+      <div className="mt-2 flex gap-2">
+        {REACH.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            aria-pressed={kind === item.id}
+            onClick={() => onKind(item.id)}
+            className={`rounded-full px-3 py-1.5 text-sm font-semibold ${kind === item.id ? "bg-toka text-toka-ink" : "bg-surface text-muted"}`}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+      <input
+        value={value}
+        onChange={(event) => onValue(event.target.value)}
+        placeholder={field.placeholder}
+        autoComplete={kind === "twitter" ? "off" : "email"}
+        inputMode={kind === "twitter" ? "text" : "email"}
+        className="mt-2 w-full rounded-xl bg-surface-2 px-3 py-3 text-base font-normal"
+      />
+    </div>
+  );
 }
 
 export function CreateLeague({
@@ -28,7 +74,9 @@ export function CreateLeague({
 }) {
   const [name, setName] = useState("");
   const [draft, setDraft] = useState("");
-  const [people, setPeople] = useState<string[]>([]);
+  const [kind, setKind] = useState<SeatReach["kind"]>("email");
+  const [contact, setContact] = useState("");
+  const [people, setPeople] = useState<{ name: string; reach?: SeatReach }[]>([]);
   const [bonus, setBonus] = useState(false);
   const [trades, setTrades] = useState(false);
   const [advanced, setAdvanced] = useState(false);
@@ -36,8 +84,10 @@ export function CreateLeague({
   const [inviting, setInviting] = useState("");
   const [inviteNote, setInviteNote] = useState("");
 
-  function roster(): string[] {
-    return you && !people.some((person) => person.toLowerCase() === you.toLowerCase()) ? [you, ...people] : people;
+  function roster(): { name: string; reach?: SeatReach }[] {
+    const youSeat = you ? [{ name: you }] : [];
+    const rest = people.filter((person) => person.name.toLowerCase() !== you.toLowerCase());
+    return you ? [...youSeat, ...rest] : people;
   }
 
   function buildLeague(): CustomLeague | null {
@@ -51,7 +101,12 @@ export function CreateLeague({
       drafting: true,
       advanced,
       headToHead,
-      seats: names.map((person) => ({ id: newId(), name: person, picks: [] })),
+      seats: names.map((person) => ({
+        id: newId(),
+        name: person.name,
+        picks: [],
+        ...(person.reach ? { reach: person.reach } : {}),
+      })),
     };
   }
 
@@ -90,12 +145,15 @@ export function CreateLeague({
   function addPerson() {
     const next = draft.trim();
     if (!next) return;
-    if (people.some((p) => p.toLowerCase() === next.toLowerCase())) {
+    if (people.some((person) => person.name.toLowerCase() === next.toLowerCase())) {
       setDraft("");
       return;
     }
-    setPeople((list) => [...list, next]);
+    const value = contact.trim();
+    const reach = value ? ({ kind, value: kind === "twitter" ? value.replace(/^@/, "") : value } satisfies SeatReach) : undefined;
+    setPeople((list) => [...list, { name: next, ...(reach ? { reach } : {}) }]);
     setDraft("");
+    setContact("");
   }
 
   const ready = name.trim().length > 0 && people.length > 0;
@@ -139,28 +197,36 @@ export function CreateLeague({
           </button>
         </span>
       </label>
+      <ReachPicker kind={kind} value={contact} onKind={setKind} onValue={setContact} />
 
       {people.length > 0 && (
         <ul className="mt-3 flex flex-col gap-2">
           {people.map((person, index) => {
-            const color = seatColors(person, index);
+            const color = seatColors(person.name, index);
             return (
-              <li key={person} className="flex items-center justify-between gap-3">
-                <span className="rounded-lg px-3 py-1.5 text-sm font-semibold ring-1 ring-fg/15" style={{ background: color.bg, color: color.fg }}>
-                  {person}
+              <li key={person.name} className="flex items-center justify-between gap-3">
+                <span>
+                  <span className="rounded-lg px-3 py-1.5 text-sm font-semibold ring-1 ring-fg/15" style={{ background: color.bg, color: color.fg }}>
+                    {person.name}
+                  </span>
+                  {person.reach && (
+                    <span className="mt-1 block text-xs text-muted">
+                      {person.reach.kind === "twitter" ? `@${person.reach.value}` : person.reach.value}
+                    </span>
+                  )}
                 </span>
                 <span className="flex shrink-0 items-center gap-3">
                   <button
                     type="button"
-                    onClick={() => void invitePerson(person)}
+                    onClick={() => void invitePerson(person.name)}
                     disabled={inviting !== ""}
                     className="text-sm font-semibold text-toka disabled:opacity-40"
                   >
-                    {inviting === person ? "Inviting" : "Invite"}
+                    {inviting === person.name ? "Inviting" : "Invite"}
                   </button>
                   <button
                     type="button"
-                    onClick={() => setPeople((list) => list.filter((p) => p !== person))}
+                    onClick={() => setPeople((list) => list.filter((item) => item.name !== person.name))}
                     className="text-sm font-semibold text-muted"
                   >
                     Remove
@@ -303,7 +369,7 @@ export function CustomBoard({
 }: {
   league: CustomLeague;
   onOpenSeat: (id: string) => void;
-  onAddSeat: (name: string) => void;
+  onAddSeat: (name: string, reach?: SeatReach) => void;
   onCloseDraft: () => void;
   onDelete: () => void;
   onInvite: () => void;
@@ -314,6 +380,8 @@ export function CustomBoard({
   inviteError: string;
 }) {
   const [draft, setDraft] = useState("");
+  const [kind, setKind] = useState<SeatReach["kind"]>("email");
+  const [contact, setContact] = useState("");
   const [armed, setArmed] = useState(false);
   const [closing, setClosing] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -397,8 +465,11 @@ export function CustomBoard({
       setDraft("");
       return;
     }
-    onAddSeat(next);
+    const value = contact.trim();
+    const reach = value ? ({ kind, value: kind === "twitter" ? value.replace(/^@/, "") : value } satisfies SeatReach) : undefined;
+    onAddSeat(next, reach);
     setDraft("");
+    setContact("");
     if (league.code) shareInvite(next);
   }
 
@@ -520,6 +591,7 @@ export function CustomBoard({
       {alertNote && <p className="mt-2 text-sm text-muted">{alertNote}</p>}
       {!you && <p className="mt-2 text-sm text-muted">Save your name on the You tab. The alert matches that name to a seat.</p>}
       {league.drafting && (
+        <>
         <label className="mt-4 block text-sm font-semibold">
           Add a person
           <span className="mt-1 flex gap-2">
@@ -540,6 +612,8 @@ export function CustomBoard({
             </button>
           </span>
         </label>
+        <ReachPicker kind={kind} value={contact} onKind={setKind} onValue={setContact} />
+        </>
       )}
       {invited && (
         <div className="mt-3 rounded-2xl bg-surface px-4 py-3">

@@ -204,7 +204,9 @@ export const contestants: Contestant[] = [
     hometown: "Spring Valley, NY",
     job: "Personal trainer",
     tribe: "savu",
-    status: "active",
+    status: "out",
+    boot: "7th voted out · Day 12",
+    revealAt: "2026-10-29T01:30:00.000Z",
   },
   {
     id: "patt",
@@ -586,6 +588,17 @@ export const tribals: Tribal[] = [
       { voter: "kilby", for: "linnea" },
       { voter: "sharonda", for: "linnea" },
       { voter: "linnea", for: "lewis" },
+    ],
+  },
+  {
+    day: 12,
+    tribe: "savu",
+    boot: "ori",
+    tally: "2–0",
+    revealAt: "2026-10-29T01:30:00.000Z",
+    votes: [
+      { voter: "devin", for: "ori" },
+      { voter: "jelly", for: "ori" },
     ],
   },
 ];

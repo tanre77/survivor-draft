@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import type { CustomSeat } from "@/data/custom-leagues";
+import { cleanReach } from "@/data/custom-leagues";
 
 export type SharedLeague = {
   code: string;
@@ -43,6 +44,7 @@ function cleanSeats(value: unknown): CustomSeat[] {
       ...(typeof row.total === "string" ? { total: row.total.slice(0, 20) } : {}),
       ...(typeof row.prize === "string" ? { prize: row.prize.slice(0, 20) } : {}),
       ...(typeof row.place === "number" && Number.isFinite(row.place) ? { place: row.place } : {}),
+      ...(cleanReach(row.reach) ? { reach: cleanReach(row.reach) } : {}),
     }];
   });
 }

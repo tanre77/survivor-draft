@@ -1,5 +1,7 @@
 import { managers } from "./league.ts";
 
+export type SeatReach = { kind: "email" | "google" | "twitter"; value: string };
+
 export type CustomSeat = {
   id: string;
   name: string;
@@ -8,6 +10,7 @@ export type CustomSeat = {
   total?: string;
   prize?: string;
   place?: number;
+  reach?: SeatReach;
 };
 
 export type CustomLeague = {
@@ -60,6 +63,7 @@ export function loadCustomLeagues(): CustomLeague[] {
           ...(typeof seat?.total === "string" ? { total: seat.total } : {}),
           ...(typeof seat?.prize === "string" ? { prize: seat.prize } : {}),
           ...(typeof seat?.place === "number" ? { place: seat.place } : {}),
+          ...(cleanReach(seat?.reach) ? { reach: cleanReach(seat?.reach) } : {}),
         })),
       }));
   } catch {
@@ -94,6 +98,21 @@ export function nextDrafter<T extends { picks: string[] }>(seats: T[]): T | null
 
 export function draftIsFull(seats: { picks: string[] }[]): boolean {
   return seats.length > 0 && nextDrafter(seats) == null;
+}
+
+export function cleanReach(value: unknown): SeatReach | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const row = value as { kind?: unknown; value?: unknown };
+  const kind = row.kind === "google" || row.kind === "twitter" || row.kind === "email" ? row.kind : null;
+  const text = typeof row.value === "string" ? row.value.trim().slice(0, 120) : "";
+  if (!kind || !text) return undefined;
+  return { kind, value: kind === "twitter" ? text.replace(/^@/, "") : text };
+}
+
+export function leagueStillOpen(league: { drafting?: boolean; seats: { picks: string[]; scores?: number[] }[] }): boolean {
+  if (league.seats.some((seat) => seat.scores != null && seat.scores.length > 0)) return false;
+  if (league.drafting === false && draftIsFull(league.seats)) return false;
+  return true;
 }
 
 export function lastDrafter<T extends { picks: string[] }>(seats: T[]): T | null {

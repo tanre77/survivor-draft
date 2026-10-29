@@ -32,9 +32,9 @@ test("parseWikiBoots reads voted out, quit, and skips people still in", () => {
   );
 });
 
-test("a Wednesday night boot stays hidden until 11pm Pacific", () => {
+test("a Wednesday night boot stays hidden until 9:30pm Eastern", () => {
   const during = Date.parse("2026-10-22T01:00:00.000Z");
-  assert.equal(revealAtFor(during), "2026-10-22T06:00:00.000Z");
+  assert.equal(revealAtFor(during), "2026-10-22T01:30:00.000Z");
   const morningAfter = Date.parse("2026-10-22T17:00:00.000Z");
   assert.ok(Date.parse(revealAtFor(morningAfter)) < morningAfter);
 });

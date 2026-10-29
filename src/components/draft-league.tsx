@@ -2,10 +2,10 @@ import { createContext, lazy, Suspense, useContext, useEffect, useId, useMemo, u
 import { ChevronLeft, ChevronRight, Gem, LayoutGrid, ScrollText, Search, UserRound, Users, X } from "lucide-react";
 import { reportError, startDiagnostics } from "@/lib/diagnostics";
 import { LeagueHome } from "@/components/league-home";
-import { draftIsFull, lastDrafter, loadCustomLeagues, newId, nextDrafter, rosterKey, saveCustomLeagues, shuffleSeats, takenBy, type CustomLeague } from "@/data/custom-leagues";
+import { draftIsFull, lastDrafter, leagueStillOpen, loadCustomLeagues, newId, nextDrafter, rosterKey, saveCustomLeagues, shuffleSeats, takenBy, type CustomLeague } from "@/data/custom-leagues";
 import type { ImportedSheet } from "@/data/import-sheet";
-import { loadProfile, saveProfile } from "@/data/profile";
-import { notifyTurn } from "@/lib/turn-mail";
+import { loadProfile, normalizeEmail, saveProfile } from "@/data/profile";
+import { notifyTurn, saveTurnAlert } from "@/lib/turn-mail";
 import { applyTheme, watchTheme } from "@/data/theme";
 import { deleteSharedLeague, fetchSharedLeague, normalizeCode, publishSharedLeague, saveSharedLeague, type SharedLeague } from "@/lib/shared-leagues";
 import { fetchWikiBoots } from "@/lib/wiki-live";
@@ -473,6 +473,9 @@ export function DraftLeague() {
                 {backLabel}
               </button>
               {place.view === "s51" && <p className="text-xs font-semibold tracking-widest text-toka">IN PROGRESS</p>}
+              {place.view === "custom" && custom && leagueStillOpen(custom) && (
+                <p className="text-xs font-semibold tracking-widest text-toka">IN PROGRESS</p>
+              )}
               {place.view === "s51" && (
                 <h1 className="font-display text-5xl leading-none">
                   Survivor <span className="text-toka">51</span>
@@ -602,10 +605,14 @@ export function DraftLeague() {
                 },
               })
                 .then((shared) => {
-                  const next = { ...league, code: shared.code, seats: shared.seats };
-                  setLeagues((list) => [next, ...list]);
+                  const nextLeague = { ...league, code: shared.code, seats: shared.seats };
+                  setLeagues((list) => [nextLeague, ...list]);
                   setCustomSeat(null);
-                  setPlace({ view: "custom", id: next.id });
+                  setPlace({ view: "custom", id: nextLeague.id });
+                  for (const seat of shared.seats) {
+                    const email = seat.reach && seat.reach.kind !== "twitter" ? normalizeEmail(seat.reach.value) : "";
+                    if (email) void saveTurnAlert({ data: { code: shared.code, name: seat.name, email } }).catch(() => undefined);
+                  }
                   return shared.code;
                 })
                 .catch(() => {
@@ -634,13 +641,19 @@ export function DraftLeague() {
           <CustomBoard
             league={custom}
             onOpenSeat={setCustomSeat}
-            onAddSeat={(name) => {
-              const seats = [...custom.seats, { id: newId(), name, picks: [] }];
+            onAddSeat={(name, reach) => {
+              const seats = [...custom.seats, { id: newId(), name, picks: [], ...(reach ? { reach } : {}) }];
               const next = { ...custom, seats };
               setInvited(name);
               setInviteError("");
+              const email = reach && reach.kind !== "twitter" ? normalizeEmail(reach.value) : "";
+              const remember = (code: string) => {
+                if (!email) return;
+                void saveTurnAlert({ data: { code, name, email } }).catch(() => undefined);
+              };
               if (next.code) {
                 updateLeague(next);
+                remember(next.code);
                 return;
               }
               setLeagues((list) => list.map((league) => (league.id === next.id ? next : league)));
@@ -655,7 +668,10 @@ export function DraftLeague() {
                   seats: next.seats,
                 },
               })
-                .then((shared) => updateLeague({ ...next, code: shared.code, seats: shared.seats }))
+                .then((shared) => {
+                  updateLeague({ ...next, code: shared.code, seats: shared.seats });
+                  remember(shared.code);
+                })
                 .catch(() => setInviteError("Couldn't make the invite link. Try again."));
             }}
             onCloseDraft={() => updateLeague({ ...custom, drafting: false })}
@@ -1382,7 +1398,7 @@ function PlayerBody({
         </p>
       )}
       <h3 className="mt-5 text-xs font-semibold tracking-widest text-muted">VOTES</h3>
-      {votes.length === 0 && <p className="mt-2 text-sm text-muted">No public vote yet. A tribal stays hidden until 11pm Pacific.</p>}
+      {votes.length === 0 && <p className="mt-2 text-sm text-muted">No public vote yet. A tribal stays hidden until the episode ends at 9:30.</p>}
       <ul className="mt-2 flex flex-col gap-2">
         {votes.map((row) => {
           const target = row.mine?.for ? contestantById(row.mine.for) : null;
@@ -1523,7 +1539,7 @@ function GameStats({ onOpenPlayer }: { onOpenPlayer: (id: string) => void }) {
       <p className="text-xs font-semibold tracking-widest text-toka">THIS SEASON</p>
       <h1 className="mt-1 font-display text-5xl leading-none">The game</h1>
       <p className="mt-2 text-sm text-muted">
-        {challenges} challenge {challenges === 1 ? "win" : "wins"} and {idols} {idols === 1 ? "idol" : "idols"} so far. Counts stay hidden until 11pm Pacific.
+        {challenges} challenge {challenges === 1 ? "win" : "wins"} and {idols} {idols === 1 ? "idol" : "idols"} so far. Counts stay hidden until the episode ends at 9:30.
       </p>
       <ul className="mt-4 flex flex-col gap-2">
         {rows.map((row) => (

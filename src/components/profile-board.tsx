@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { CustomLeague } from "@/data/custom-leagues";
+import { episodeFinishLine } from "@/data/airtime";
 import { loadProfile, normalizeEmail, saveProfile } from "@/data/profile";
 import { profileLines } from "@/data/profile-lines";
 import { loadTheme, saveTheme, type ThemeChoice } from "@/data/theme";
@@ -16,7 +17,15 @@ export function ProfileBoard({ leagues, onName }: { leagues: CustomLeague[]; onN
   const [email, setEmail] = useState(() => loadProfile().email);
   const [emailDraft, setEmailDraft] = useState(email);
   const [theme, setTheme] = useState<ThemeChoice>(() => loadTheme());
+  const [episode, setEpisode] = useState("");
   const lines = profileLines(name, leagues);
+
+  useEffect(() => {
+    const paint = () => setEpisode(episodeFinishLine(Date.now()));
+    paint();
+    const id = window.setInterval(paint, 30_000);
+    return () => window.clearInterval(id);
+  }, []);
 
   function save(next: string) {
     const trimmed = next.trim();
@@ -68,6 +77,10 @@ export function ProfileBoard({ leagues, onName }: { leagues: CustomLeague[]; onN
       <p className="mt-2 text-sm text-muted">
         {email ? `Turn alerts go to ${email}.` : "Add an email and we'll mail you when it's your pick."}
       </p>
+
+      <p className="mt-8 text-xs font-semibold tracking-widest text-muted">EPISODE</p>
+      <p className="mt-2 text-sm">{episode || "Checking this week's episode."}</p>
+      <p className="mt-1 text-sm text-muted">That time is yours, not Eastern. The show runs 8:00 to 9:30.</p>
 
       <p className="mt-8 text-xs font-semibold tracking-widest text-muted">APPEARANCE</p>
       <div className="mt-2 grid grid-cols-3 gap-2" role="group" aria-label="Appearance">

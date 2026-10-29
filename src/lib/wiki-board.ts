@@ -17,11 +17,12 @@ function ordinal(n: number): string {
   }
 }
 
-function pacificParts(now: number) {
+function easternParts(now: number) {
   const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/Los_Angeles",
+    timeZone: "America/New_York",
     weekday: "short",
     hour: "2-digit",
+    minute: "2-digit",
     hourCycle: "h23",
     year: "numeric",
     month: "2-digit",
@@ -31,17 +32,18 @@ function pacificParts(now: number) {
   return {
     weekday: value("weekday"),
     hour: Number(value("hour")),
+    minute: Number(value("minute")),
     year: Number(value("year")),
     month: Number(value("month")),
     day: Number(value("day")),
   };
 }
 
-/** 11:00pm Pacific on a calendar date, as UTC. */
-function pacificEleven(year: number, month: number, day: number): string {
-  const guess = Date.UTC(year, month - 1, day, 23, 0, 0);
+/** 9:30pm Eastern on a calendar date, as UTC. The Wednesday episode ends then. */
+function easternNineThirty(year: number, month: number, day: number): string {
+  const guess = Date.UTC(year, month - 1, day, 21, 30, 0);
   const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/Los_Angeles",
+    timeZone: "America/New_York",
     hourCycle: "h23",
     year: "numeric",
     month: "2-digit",
@@ -54,12 +56,11 @@ function pacificEleven(year: number, month: number, day: number): string {
   return new Date(guess - (shown - guess)).toISOString();
 }
 
-/** During Wednesday's broadcast, hold a new boot until 11pm Pacific. Any other time, it is already public. */
+/** During Wednesday's broadcast, hold a new boot until 9:30pm Eastern. Any other time, it is already public. */
 export function revealAtFor(now: number): string {
-  const wall = pacificParts(now);
-  if (wall.weekday === "Wed" && wall.hour >= 17 && wall.hour < 23) {
-    return pacificEleven(wall.year, wall.month, wall.day);
-  }
+  const wall = easternParts(now);
+  const during = wall.weekday === "Wed" && (wall.hour > 20 || wall.hour === 20 || (wall.hour === 21 && wall.minute < 30));
+  if (during && wall.hour >= 20) return easternNineThirty(wall.year, wall.month, wall.day);
   return new Date(now - 1000).toISOString();
 }
 
