@@ -29,5 +29,25 @@ final class ScoringTests: XCTestCase {
         XCTAssertEqual(BoardData.contestants.count, 21)
         XCTAssertEqual(BoardData.managers.count, 23)
         XCTAssertTrue(BoardData.managers.allSatisfy { $0.picks.count == 3 })
+        XCTAssertTrue(Scoring.seasonStillOpen)
+    }
+
+    func testLatestNightOutranksAHigherFinish() {
+        let day10 = ISO8601DateFormatter().date(from: "2026-10-22T06:00:01Z")!
+        XCTAssertEqual(Scoring.latestBoots(now: day10).map(\.id), ["alexis", "linnea"])
+    }
+
+    func testOriStaysHiddenUntilNineThirtyEastern() {
+        let ori = BoardData.contestants.first { $0.id == "ori" }!
+        XCTAssertEqual(ori.status, "out")
+        XCTAssertEqual(ori.boot, "7th voted out · Day 12")
+        XCTAssertEqual(ori.revealAt, "2026-10-29T01:30:00.000Z")
+        let before = ISO8601DateFormatter().date(from: "2026-10-29T01:29:59Z")!
+        let after = ISO8601DateFormatter().date(from: "2026-10-29T01:30:00Z")!
+        XCTAssertFalse(Scoring.isBootPublic(ori, now: before))
+        XCTAssertTrue(Scoring.isBootPublic(ori, now: after))
+        XCTAssertNil(Scoring.score(ori, bonusOn: false, now: before))
+        XCTAssertEqual(Scoring.score(ori, bonusOn: false, now: after), 15)
+        XCTAssertEqual(Scoring.latestBoots(now: after).map(\.id), ["ori"])
     }
 }

@@ -1,6 +1,20 @@
 name: ios
 on:
   workflow_dispatch:
+  pull_request:
+    paths:
+      - "ios/**"
+      - "native/**"
+      - "shared/**"
+      - "src/data/league.ts"
+      - "src/data/airtime.ts"
+      - "src/data/airtime.test.ts"
+      - "src/lib/wiki-board.ts"
+      - "src/lib/wiki-board.test.ts"
+      - "src/styles.css"
+      - ".github/workflows/ios.yml"
+      - "package.json"
+      - "package-lock.json"
 jobs:
   xcode:
     runs-on: macos-15
@@ -11,9 +25,18 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npm run board
+      - run: npm install --prefix android --ignore-scripts
+      - run: npm run check:native
+      - name: Generated board and palette are committed
+        run: |
+          paths="ios/SurvivorDraft/Generated android/src/data/board.ts shared/board.json"
+          if [ -n "$(git status --porcelain -- $paths)" ]; then
+            git status --porcelain -- $paths
+            git diff -- $paths
+            exit 1
+          fi
       - run: brew install xcodegen
       - run: xcodegen generate
         working-directory: ios
-      - run: xcodebuild -scheme SurvivorDraft -destination 'platform=iOS Simulator,name=iPhone 16' test
+      - run: xcodebuild -scheme SurvivorDraft -destination 'platform=iOS Simulator,name=iPhone 16' test CODE_SIGNING_ALLOWED=NO
         working-directory: ios

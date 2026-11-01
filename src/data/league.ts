@@ -11,7 +11,7 @@ export type Contestant = {
   tribe: Tribe;
   status: Status;
   boot?: string;
-  /** ISO time. A boot stays off the board until this instant so Pacific airtime is not spoiled. */
+  /** ISO time. A boot stays off the board until this instant. Wednesday's show is public at 9:30pm Eastern. */
   revealAt?: string;
   aliases?: string[];
 };
@@ -204,7 +204,9 @@ export const contestants: Contestant[] = [
     hometown: "Spring Valley, NY",
     job: "Personal trainer",
     tribe: "savu",
-    status: "active",
+    status: "out",
+    boot: "7th voted out · Day 12",
+    revealAt: "2026-10-29T01:30:00.000Z",
   },
   {
     id: "patt",
@@ -297,7 +299,7 @@ export function photoSrc(id: string): string {
   return `/cast/${id}.jpg`;
 }
 
-/** Idols found, advantages, successful plays, challenge wins, and final-tribal votes. A reveal time stays hidden until 11:00 PM Pacific. */
+/** Idols found, advantages, successful plays, challenge wins, and final-tribal votes. A reveal time stays hidden until the episode is public, 9:30pm Eastern on Wednesdays. */
 export const bonuses: Record<
   string,
   {
@@ -470,7 +472,7 @@ export type Tribal = {
   votes: TribalVote[];
 };
 
-/** Hidden until 11:00 PM Pacific, same as the boot they decide. */
+/** Hidden until the boot is public. Wednesday's show waits until 9:30pm Eastern. */
 export const tribals: Tribal[] = [
   {
     day: 3,
@@ -542,6 +544,44 @@ export const tribals: Tribal[] = [
       { voter: "jelly", for: "jenna" },
       { voter: "ori", for: "jenna" },
       { voter: "jenna", for: "alexis" },
+    ],
+  },
+  {
+    day: 10,
+    tribe: "savu",
+    boot: "alexis",
+    tally: "3–1",
+    revealAt: "2026-10-22T06:00:00.000Z",
+    votes: [
+      { voter: "devin", for: "alexis" },
+      { voter: "jelly", for: "alexis" },
+      { voter: "ori", for: "alexis" },
+      { voter: "alexis", for: "devin" },
+    ],
+  },
+  {
+    day: 10,
+    tribe: "dina",
+    boot: "linnea",
+    tally: "4–4, then 4–0",
+    revealAt: "2026-10-22T06:00:00.000Z",
+    votes: [
+      { voter: "cristian", for: "linnea" },
+      { voter: "eric", for: "linnea" },
+      { voter: "kilby", for: "linnea" },
+      { voter: "sharonda", for: "linnea" },
+      { voter: "linnea", for: "lewis" },
+    ],
+  },
+  {
+    day: 12,
+    tribe: "savu",
+    boot: "ori",
+    tally: "2–0",
+    revealAt: "2026-10-29T01:30:00.000Z",
+    votes: [
+      { voter: "devin", for: "ori" },
+      { voter: "jelly", for: "ori" },
     ],
   },
 ];
