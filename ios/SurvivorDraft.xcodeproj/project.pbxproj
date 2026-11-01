@@ -14,6 +14,11 @@
 		A10000000000000000000015 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000025 /* Assets.xcassets */; };
 		A10000000000000000000016 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000026 /* PrivacyInfo.xcprivacy */; };
 		A10000000000000000000017 /* ScoringTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000027 /* ScoringTests.swift */; };
+		A10000000000000000000018 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000029 /* Theme.swift */; };
+		A10000000000000000000019 /* Airtime.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000002A /* Airtime.swift */; };
+		A1000000000000000000001A /* Chrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000002B /* Chrome.swift */; };
+		A1000000000000000000001B /* Palette.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000002C /* Palette.swift */; };
+		A1000000000000000000001C /* AirtimeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000002D /* AirtimeTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -35,6 +40,11 @@
 		A10000000000000000000026 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		A10000000000000000000028 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A10000000000000000000027 /* ScoringTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoringTests.swift; sourceTree = "<group>"; };
+		A10000000000000000000029 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
+		A1000000000000000000002A /* Airtime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Airtime.swift; sourceTree = "<group>"; };
+		A1000000000000000000002B /* Chrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Chrome.swift; sourceTree = "<group>"; };
+		A1000000000000000000002C /* Palette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Palette.swift; sourceTree = "<group>"; };
+		A1000000000000000000002D /* AirtimeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AirtimeTests.swift; sourceTree = "<group>"; };
 		A10000000000000000000041 /* SurvivorDraft.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SurvivorDraft.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10000000000000000000042 /* SurvivorDraftTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SurvivorDraftTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -71,6 +81,9 @@
 			children = (
 				A10000000000000000000021 /* SurvivorDraftApp.swift */,
 				A10000000000000000000022 /* Scoring.swift */,
+				A1000000000000000000002A /* Airtime.swift */,
+				A1000000000000000000002B /* Chrome.swift */,
+				A10000000000000000000029 /* Theme.swift */,
 				A10000000000000000000023 /* CrashReporting.swift */,
 				A10000000000000000000063 /* Generated */,
 				A10000000000000000000025 /* Assets.xcassets */,
@@ -84,6 +97,7 @@
 			isa = PBXGroup;
 			children = (
 				A10000000000000000000024 /* BoardData.swift */,
+				A1000000000000000000002C /* Palette.swift */,
 			);
 			path = Generated;
 			sourceTree = "<group>";
@@ -92,6 +106,7 @@
 			isa = PBXGroup;
 			children = (
 				A10000000000000000000027 /* ScoringTests.swift */,
+				A1000000000000000000002D /* AirtimeTests.swift */,
 			);
 			path = SurvivorDraftTests;
 			sourceTree = "<group>";
@@ -198,8 +213,12 @@
 			files = (
 				A10000000000000000000011 /* SurvivorDraftApp.swift in Sources */,
 				A10000000000000000000012 /* Scoring.swift in Sources */,
+				A10000000000000000000019 /* Airtime.swift in Sources */,
+				A1000000000000000000001A /* Chrome.swift in Sources */,
+				A10000000000000000000018 /* Theme.swift in Sources */,
 				A10000000000000000000013 /* CrashReporting.swift in Sources */,
 				A10000000000000000000014 /* BoardData.swift in Sources */,
+				A1000000000000000000001B /* Palette.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -208,6 +227,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A10000000000000000000017 /* ScoringTests.swift in Sources */,
+				A1000000000000000000001C /* AirtimeTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

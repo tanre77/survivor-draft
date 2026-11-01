@@ -46,7 +46,7 @@ enum BoardData {
         Contestant(id: "linnea", first: "Linnea", last: "Capobianco", age: 25, hometown: "Jersey City, NJ", job: "Entrepreneur", tribe: "dina", status: "out", boot: "6th voted out · Day 10", revealAt: "2026-10-22T06:00:00.000Z"),
         Contestant(id: "maggie", first: "Maggie", last: "Nestor", age: 40, hometown: "Charles Town, WV", job: "Farmer", tribe: "toka", status: "active", boot: nil, revealAt: nil),
         Contestant(id: "mike", first: "Mike", last: "Pinsky", age: 32, hometown: "New York, NY", job: "Baseball executive", tribe: "toka", status: "active", boot: nil, revealAt: nil),
-        Contestant(id: "ori", first: "Ori", last: "Jean-Charles", age: 27, hometown: "Spring Valley, NY", job: "Personal trainer", tribe: "savu", status: "active", boot: nil, revealAt: nil),
+        Contestant(id: "ori", first: "Ori", last: "Jean-Charles", age: 27, hometown: "Spring Valley, NY", job: "Personal trainer", tribe: "savu", status: "out", boot: "7th voted out · Day 12", revealAt: "2026-10-29T01:30:00.000Z"),
         Contestant(id: "patt", first: "Patt", last: "Cannaday", age: 33, hometown: "Washington, D.C.", job: "Federal prosecutor", tribe: "toka", status: "out", boot: "3rd voted out · Day 7", revealAt: "2026-10-08T06:00:00.000Z"),
         Contestant(id: "rob", first: "Rob", last: "Antonson", age: 40, hometown: "Cumberland, RI", job: "Airline gate agent", tribe: "savu", status: "out", boot: "19th place · Quit · Day 6", revealAt: "2026-10-08T06:00:00.000Z"),
         Contestant(id: "sharonda", first: "Sharonda", last: "Cox", age: 34, hometown: "Richmond, KY", job: "OB/GYN resident", tribe: "dina", status: "active", boot: nil, revealAt: nil),
