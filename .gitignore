@@ -9,7 +9,8 @@ dist
 .env
 .env.*
 screenshots
-.grok
+.grok/*
+!.grok/app-env.json
 *.log
 .DS_Store
 android/node_modules
@@ -29,5 +30,10 @@ fastlane/report.xml
 fastlane/Preview.html
 fastlane/test_output
 fastlane/README.md
+fastlane/play-service-account.json
+fastlane/metadata/en-US/privacy_url.txt
+fastlane/metadata/en-US/support_url.txt
+ios/build
+android/android/release.keystore
 *.p8
 *.mobileprovision

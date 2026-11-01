@@ -111,4 +111,8 @@ export const board: {
 `,
 );
 
-console.log("generated BoardData.swift and android/src/data/board.ts");
+const assetDir = new URL("../android/android/app/src/main/assets/", import.meta.url);
+mkdirSync(assetDir, { recursive: true });
+writeFileSync(new URL("board.json", assetDir), JSON.stringify(board));
+
+console.log("generated BoardData.swift, android/src/data/board.ts, and android assets/board.json");

@@ -78,6 +78,27 @@ final class Board {
         return copy;
     }
 
+    /**
+     * Names who left on the latest public night. A Wednesday boot stays off this
+     * list until its revealAt, which the board sets to 9:30pm Eastern.
+     */
+    List<String> latestLines() {
+        int day = 0;
+        for (Contestant person : contestants) {
+            if (!person.publicBoot()) continue;
+            day = Math.max(day, bootDay(person.boot));
+        }
+        List<Contestant> night = new ArrayList<>();
+        if (day == 0) return new ArrayList<>();
+        for (Contestant person : contestants) {
+            if (person.publicBoot() && bootDay(person.boot) == day) night.add(person);
+        }
+        Collections.sort(night, Comparator.comparingInt(person -> votedOutOrder(person.boot)));
+        List<String> lines = new ArrayList<>();
+        for (Contestant person : night) lines.add(person.first + " · " + person.boot);
+        return lines;
+    }
+
     static final class Seat {
         final String name;
         final int total;
@@ -114,6 +135,20 @@ final class Board {
             if (!out || !revealed || boot.isEmpty()) return null;
             return finishPoints(boot, castSize);
         }
+
+        boolean publicBoot() {
+            return out && revealed && !boot.isEmpty() && bootDay(boot) > 0;
+        }
+    }
+
+    private static int bootDay(String boot) {
+        Matcher match = Pattern.compile("day\\s+(\\d+)", Pattern.CASE_INSENSITIVE).matcher(boot);
+        return match.find() ? Integer.parseInt(match.group(1)) : 0;
+    }
+
+    private static int votedOutOrder(String boot) {
+        Matcher match = Pattern.compile("(\\d+)(?:st|nd|rd|th) voted out", Pattern.CASE_INSENSITIVE).matcher(boot);
+        return match.find() ? Integer.parseInt(match.group(1)) : 0;
     }
 
     static Integer finishPoints(String boot, int castSize) {

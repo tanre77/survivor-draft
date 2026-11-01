@@ -1,0 +1,139 @@
+default_platform(:ios)
+
+def require_upload!
+  return if ENV["RELEASE_UPLOAD"] == "1"
+
+  UI.user_error!("Refusing to upload. .github/workflows/release.yml sets RELEASE_UPLOAD=1 on manual dispatch only.")
+end
+
+def web_origin
+  ENV.fetch("PUBLIC_WEB_ORIGIN").sub(%r{/\z}, "")
+end
+
+def write_store_urls!
+  origin = web_origin
+  privacy = "#{origin}/privacy.html"
+  support = "#{origin}/support.html"
+  dir = File.expand_path("metadata/en-US", __dir__)
+  FileUtils.mkdir_p(dir)
+  File.write(File.join(dir, "privacy_url.txt"), "#{privacy}\n")
+  File.write(File.join(dir, "support_url.txt"), "#{support}\n")
+  UI.important("Privacy policy: #{privacy}")
+  UI.important("Support URL: #{support}")
+  UI.important("Those pages are public/privacy.html and public/support.html in this repo.")
+end
+
+def app_store_key
+  raw = ENV.fetch("APP_STORE_CONNECT_API_KEY")
+  app_store_connect_api_key(
+    key_id: ENV.fetch("APP_STORE_CONNECT_KEY_ID"),
+    issuer_id: ENV.fetch("APP_STORE_CONNECT_ISSUER_ID"),
+    key_content: raw,
+    is_key_content_base64: !raw.include?("BEGIN"),
+  )
+end
+
+platform :ios do
+  desc "Archive Survivor Draft and upload it to TestFlight. Does not submit for review."
+  lane :beta do
+    require_upload!
+    write_store_urls!
+    api_key = app_store_key
+    match(
+      type: "appstore",
+      readonly: true,
+      app_identifier: "com.tanre77.survivordraft",
+      git_url: ENV.fetch("MATCH_GIT_URL"),
+      git_basic_authorization: ENV["MATCH_GIT_BASIC_AUTHORIZATION"],
+    )
+    profile_name = ENV["sigh_com.tanre77.survivordraft_appstore_profile-name"]
+    UI.user_error!("match did not install an App Store profile for com.tanre77.survivordraft") if profile_name.to_s.empty?
+    team = ENV.fetch("APPLE_TEAM_ID")
+    export_plist = File.expand_path("ios/build/ExportOptions.plist")
+    FileUtils.mkdir_p(File.dirname(export_plist))
+    File.write(export_plist, <<~XML)
+      <?xml version="1.0" encoding="UTF-8"?>
+      <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+      <plist version="1.0">
+      <dict>
+        <key>method</key><string>app-store-connect</string>
+        <key>destination</key><string>upload</string>
+        <key>teamID</key><string>#{team}</string>
+        <key>signingStyle</key><string>manual</string>
+        <key>signingCertificate</key><string>Apple Distribution</string>
+        <key>provisioningProfiles</key>
+        <dict>
+          <key>com.tanre77.survivordraft</key>
+          <string>#{profile_name}</string>
+        </dict>
+        <key>uploadSymbols</key><true/>
+        <key>stripSwiftSymbols</key><true/>
+        <key>manageAppVersionAndBuildNumber</key><false/>
+      </dict>
+      </plist>
+    XML
+    build_app(
+      project: "ios/SurvivorDraft.xcodeproj",
+      scheme: "SurvivorDraft",
+      configuration: "Release",
+      export_method: "app-store",
+      export_options: export_plist,
+      output_directory: "ios/build",
+      xcargs: "CODE_SIGNING_ALLOWED=YES CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM=#{team}",
+    )
+    ipa = Dir["ios/build/*.ipa"].first
+    UI.user_error!("The archive did not produce an ipa") if ipa.nil?
+    upload_to_testflight(
+      api_key: api_key,
+      ipa: ipa,
+      skip_waiting_for_build_processing: true,
+      distribute_external: false,
+      skip_submission: true,
+    )
+    if ENV["UPLOAD_STORE_METADATA"] == "true"
+      deliver(
+        api_key: api_key,
+        skip_binary_upload: true,
+        skip_screenshots: true,
+        force: true,
+        submit_for_review: false,
+        automatic_release: false,
+        precheck_include_in_app_purchases: false,
+      )
+    end
+  end
+end
+
+platform :android do
+  desc "Build a signed bundle and upload it to the Play internal track as a draft."
+  lane :internal do
+    require_upload!
+    write_store_urls!
+      keystore = File.expand_path("android/android/release.keystore")
+    json_key = File.expand_path("play-service-account.json", __dir__)
+    begin
+      File.binwrite(keystore, Base64.decode64(ENV.fetch("ANDROID_KEYSTORE_BASE64")))
+      File.write(json_key, ENV.fetch("PLAY_SERVICE_ACCOUNT_JSON"))
+      ENV["ANDROID_KEYSTORE_PATH"] = keystore
+      ENV["ANDROID_KEYSTORE_PASSWORD"] = ENV.fetch("ANDROID_KEYSTORE_PASSWORD")
+      ENV["ANDROID_KEY_ALIAS"] = ENV.fetch("ANDROID_KEY_ALIAS")
+      ENV["ANDROID_KEY_PASSWORD"] = ENV.fetch("ANDROID_KEY_PASSWORD")
+      sh("chmod +x android/android/gradlew && cd android/android && ./gradlew bundleRelease --no-daemon")
+      aab = File.expand_path("android/android/app/build/outputs/bundle/release/app-release.aab")
+      UI.user_error!("bundleRelease did not produce #{aab}") unless File.exist?(aab)
+      upload_to_play_store(
+        track: "internal",
+        release_status: "draft",
+        aab: aab,
+        json_key: json_key,
+        skip_upload_images: true,
+        skip_upload_screenshots: true,
+        skip_upload_metadata: ENV["UPLOAD_STORE_METADATA"] != "true",
+        skip_upload_changelogs: false,
+      )
+    ensure
+      File.delete(keystore) if File.exist?(keystore)
+      File.delete(json_key) if File.exist?(json_key)
+    end
+  end
+end

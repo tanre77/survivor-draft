@@ -1,0 +1,6 @@
+app_identifier("com.tanre77.survivordraft")
+team_id(ENV["APPLE_TEAM_ID"]) unless ENV["APPLE_TEAM_ID"].to_s.empty?
+
+for_platform :android do
+  package_name("com.tanre77.survivordraft")
+end

@@ -67,7 +67,27 @@ const applied = (id) =>
 if (applied("com.google.firebase.crashlytics")) fail("Crashlytics plugin must stay off until a config file exists");
 if (applied("com.google.gms.google-services")) fail("Google services plugin is enabled without a config file");
 
+const palette = ["#100e0c", "#1b1714", "#f4efe6", "#a89886", "#6e4aa8", "#e2b340", "#e25b2a", "#e10600"];
+const colorsXml = readFileSync(new URL("../android/android/app/src/main/res/values/colors.xml", import.meta.url), "utf8").toLowerCase();
+const reactNative = readFileSync(new URL("../android/App.tsx", import.meta.url), "utf8").toLowerCase();
+for (const hex of palette) {
+  if (!colorsXml.includes(hex)) fail(`android colors.xml is missing ${hex}`);
+  if (!reactNative.includes(hex)) fail(`android/App.tsx is missing ${hex}`);
+}
+if (reactNative.includes("#b7aea2")) fail("React Native muted color drifted from #a89886");
+
+const sharedBoard = JSON.parse(readFileSync(new URL("../shared/board.json", import.meta.url), "utf8"));
+const assetBoard = JSON.parse(
+  readFileSync(new URL("../android/android/app/src/main/assets/board.json", import.meta.url), "utf8"),
+);
+const sharedOri = sharedBoard.contestants.find((row) => row.id === "ori");
+const assetOri = assetBoard.contestants.find((row) => row.id === "ori");
+if (!sharedOri || !assetOri || sharedOri.revealAt !== assetOri.revealAt || sharedOri.boot !== assetOri.boot) {
+  fail("android assets/board.json is not the latest shared board");
+}
+if (assetBoard.contestants.length !== 21) fail("android assets/board.json contestant count drifted");
+
 const rn = spawnSync("npx", ["tsc", "--noEmit", "-p", "android/tsconfig.json"], { stdio: "inherit" });
 if (rn.status !== 0) fail("React Native typecheck failed");
 
-console.log("swift structure ok, android permissions ok, react native typecheck passed");
+console.log("swift structure ok, android permissions ok, palette ok, react native typecheck passed");

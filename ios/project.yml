@@ -11,6 +11,8 @@ settings:
     PRODUCT_BUNDLE_IDENTIFIER: com.tanre77.survivordraft
     MARKETING_VERSION: "1.0"
     CURRENT_PROJECT_VERSION: "1"
+    # Signing stays enabled so an archive can be uploaded. Simulator CI passes
+    # CODE_SIGNING_ALLOWED=NO. The team id is APPLE_TEAM_ID at release time.
     CODE_SIGN_STYLE: Automatic
 targets:
   SurvivorDraft:

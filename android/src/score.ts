@@ -65,3 +65,22 @@ export function scoreOf(contestant: Contestant, bonusOn: boolean, now = Date.now
 export function contestant(id: string): Contestant | undefined {
   return board.contestants.find((row) => row.id === id);
 }
+
+function bootDay(boot: string | null | undefined): number {
+  const match = boot?.match(/day\s+(\d+)/i);
+  return match ? Number(match[1]) : 0;
+}
+
+function votedOutOrder(boot: string | null | undefined): number {
+  const match = boot?.match(/(\d+)(?:st|nd|rd|th) voted out/i);
+  return match ? Number(match[1]) : 0;
+}
+
+/** People who left on the latest public night. Hidden until revealAt (9:30pm Eastern on a Wednesday). */
+export function latestBoots(now = Date.now()): Contestant[] {
+  const gone = board.contestants.filter((row) => isBootPublic(row, now) && bootDay(row.boot) > 0);
+  const day = Math.max(0, ...gone.map((row) => bootDay(row.boot)));
+  return gone
+    .filter((row) => bootDay(row.boot) === day)
+    .sort((a, b) => votedOutOrder(a.boot) - votedOutOrder(b.boot));
+}

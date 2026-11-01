@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
-import { FlatList, Pressable, SafeAreaView, StyleSheet, Text, View } from "react-native";
+import { FlatList, Pressable, SafeAreaView, StyleSheet, Text } from "react-native";
 import { board } from "./src/data/board";
-import { contestant, displayName, isBootPublic, scoreOf } from "./src/score";
+import { contestant, displayName, isBootPublic, latestBoots, scoreOf } from "./src/score";
 import { startDiagnostics } from "./src/diagnostics";
 
 startDiagnostics();
@@ -11,10 +11,7 @@ type Screen = { name: "home" } | { name: "board" } | { name: "team"; id: string 
 export default function App() {
   const [screen, setScreen] = useState<Screen>({ name: "home" });
   const now = Date.now();
-  const latest = useMemo(
-    () => [...board.contestants].reverse().find((row) => isBootPublic(row, now)),
-    [now],
-  );
+  const latest = useMemo(() => latestBoots(now), [now]);
   const ranked = useMemo(() => {
     return board.managers
       .map((manager) => ({
@@ -100,12 +97,12 @@ export default function App() {
             </Pressable>
           )}
         />
-        {latest ? (
-          <Text style={styles.boot}>
-            {displayName(latest)}
-            {latest.boot ? ` · ${latest.boot}` : ""}
+        {latest.map((row) => (
+          <Text key={row.id} style={styles.boot}>
+            {displayName(row)}
+            {row.boot ? ` · ${row.boot}` : ""}
           </Text>
-        ) : null}
+        ))}
       </SafeAreaView>
     );
   }
@@ -128,13 +125,25 @@ export default function App() {
   );
 }
 
+/** Dark tokens from src/styles.css. Keep these hexes in lockstep with that file. */
+const palette = {
+  bg: "#100e0c",
+  surface: "#1b1714",
+  fg: "#f4efe6",
+  muted: "#a89886",
+  savu: "#6e4aa8",
+  toka: "#e2b340",
+  ember: "#e25b2a",
+  boot: "#e10600",
+};
+
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: "#100e0c", padding: 16 },
-  title: { color: "#f4efe6", fontSize: 34, fontWeight: "700", marginBottom: 12 },
-  name: { color: "#f4efe6", fontSize: 20, marginTop: 14 },
-  copy: { color: "#b7aea2", fontSize: 15, marginTop: 4 },
-  out: { color: "#e10600", fontSize: 18, marginTop: 10, fontWeight: "700" },
-  outName: { color: "#e10600", fontWeight: "700" },
-  link: { color: "#e2b340", fontSize: 16, marginVertical: 8 },
-  boot: { color: "#fff", backgroundColor: "#e10600", padding: 10, fontWeight: "700" },
+  screen: { flex: 1, backgroundColor: palette.bg, padding: 16 },
+  title: { color: palette.fg, fontSize: 34, fontWeight: "700", marginBottom: 12 },
+  name: { color: palette.fg, fontSize: 20, marginTop: 14 },
+  copy: { color: palette.muted, fontSize: 15, marginTop: 4 },
+  out: { color: palette.boot, fontSize: 18, marginTop: 10, fontWeight: "700" },
+  outName: { color: palette.boot, fontWeight: "700" },
+  link: { color: palette.toka, fontSize: 16, marginVertical: 8 },
+  boot: { color: palette.fg, backgroundColor: palette.boot, padding: 10, fontWeight: "700" },
 });

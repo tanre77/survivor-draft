@@ -1,0 +1,9 @@
+{
+  "name": "Survivor Fantasy Draft",
+  "bundleId": "com.tanre77.survivordraft",
+  "applicationId": "com.tanre77.survivordraft",
+  "privacyPolicyPath": "/privacy.html",
+  "supportPath": "/support.html",
+  "privacyPolicyFile": "public/privacy.html",
+  "supportFile": "public/support.html"
+}
