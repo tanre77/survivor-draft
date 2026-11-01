@@ -1,0 +1,390 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		A10000000000000000000011 /* SurvivorDraftApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000021 /* SurvivorDraftApp.swift */; };
+		A10000000000000000000012 /* Scoring.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000022 /* Scoring.swift */; };
+		A10000000000000000000013 /* CrashReporting.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000023 /* CrashReporting.swift */; };
+		A10000000000000000000014 /* BoardData.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000024 /* BoardData.swift */; };
+		A10000000000000000000015 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000025 /* Assets.xcassets */; };
+		A10000000000000000000016 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000026 /* PrivacyInfo.xcprivacy */; };
+		A10000000000000000000017 /* ScoringTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000027 /* ScoringTests.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		A10000000000000000000031 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A10000000000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A10000000000000000000002;
+			remoteInfo = SurvivorDraft;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		A10000000000000000000021 /* SurvivorDraftApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivorDraftApp.swift; sourceTree = "<group>"; };
+		A10000000000000000000022 /* Scoring.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Scoring.swift; sourceTree = "<group>"; };
+		A10000000000000000000023 /* CrashReporting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrashReporting.swift; sourceTree = "<group>"; };
+		A10000000000000000000024 /* BoardData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoardData.swift; sourceTree = "<group>"; };
+		A10000000000000000000025 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		A10000000000000000000026 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		A10000000000000000000028 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		A10000000000000000000027 /* ScoringTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoringTests.swift; sourceTree = "<group>"; };
+		A10000000000000000000041 /* SurvivorDraft.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SurvivorDraft.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A10000000000000000000042 /* SurvivorDraftTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SurvivorDraftTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		A10000000000000000000051 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A10000000000000000000052 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		A10000000000000000000061 = {
+			isa = PBXGroup;
+			children = (
+				A10000000000000000000062 /* SurvivorDraft */,
+				A10000000000000000000064 /* SurvivorDraftTests */,
+				A10000000000000000000065 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		A10000000000000000000062 /* SurvivorDraft */ = {
+			isa = PBXGroup;
+			children = (
+				A10000000000000000000021 /* SurvivorDraftApp.swift */,
+				A10000000000000000000022 /* Scoring.swift */,
+				A10000000000000000000023 /* CrashReporting.swift */,
+				A10000000000000000000063 /* Generated */,
+				A10000000000000000000025 /* Assets.xcassets */,
+				A10000000000000000000026 /* PrivacyInfo.xcprivacy */,
+				A10000000000000000000028 /* Info.plist */,
+			);
+			path = SurvivorDraft;
+			sourceTree = "<group>";
+		};
+		A10000000000000000000063 /* Generated */ = {
+			isa = PBXGroup;
+			children = (
+				A10000000000000000000024 /* BoardData.swift */,
+			);
+			path = Generated;
+			sourceTree = "<group>";
+		};
+		A10000000000000000000064 /* SurvivorDraftTests */ = {
+			isa = PBXGroup;
+			children = (
+				A10000000000000000000027 /* ScoringTests.swift */,
+			);
+			path = SurvivorDraftTests;
+			sourceTree = "<group>";
+		};
+		A10000000000000000000065 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				A10000000000000000000041 /* SurvivorDraft.app */,
+				A10000000000000000000042 /* SurvivorDraftTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		A10000000000000000000002 /* SurvivorDraft */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A10000000000000000000082 /* Build configuration list for PBXNativeTarget "SurvivorDraft" */;
+			buildPhases = (
+				A10000000000000000000071 /* Sources */,
+				A10000000000000000000051 /* Frameworks */,
+				A10000000000000000000072 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = SurvivorDraft;
+			productName = SurvivorDraft;
+			productReference = A10000000000000000000041 /* SurvivorDraft.app */;
+			productType = "com.apple.product-type.application";
+		};
+		A10000000000000000000003 /* SurvivorDraftTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A10000000000000000000083 /* Build configuration list for PBXNativeTarget "SurvivorDraftTests" */;
+			buildPhases = (
+				A10000000000000000000073 /* Sources */,
+				A10000000000000000000052 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				A10000000000000000000032 /* PBXTargetDependency */,
+			);
+			name = SurvivorDraftTests;
+			productName = SurvivorDraftTests;
+			productReference = A10000000000000000000042 /* SurvivorDraftTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		A10000000000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastUpgradeCheck = 1600;
+				TargetAttributes = {
+					A10000000000000000000002 = {
+						CreatedOnToolsVersion = 16.0;
+					};
+					A10000000000000000000003 = {
+						CreatedOnToolsVersion = 16.0;
+						TestTargetID = A10000000000000000000002;
+					};
+				};
+			};
+			buildConfigurationList = A10000000000000000000081 /* Build configuration list for PBXProject "SurvivorDraft" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = A10000000000000000000061;
+			productRefGroup = A10000000000000000000065 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				A10000000000000000000002 /* SurvivorDraft */,
+				A10000000000000000000003 /* SurvivorDraftTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		A10000000000000000000072 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A10000000000000000000015 /* Assets.xcassets in Resources */,
+				A10000000000000000000016 /* PrivacyInfo.xcprivacy in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		A10000000000000000000071 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A10000000000000000000011 /* SurvivorDraftApp.swift in Sources */,
+				A10000000000000000000012 /* Scoring.swift in Sources */,
+				A10000000000000000000013 /* CrashReporting.swift in Sources */,
+				A10000000000000000000014 /* BoardData.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A10000000000000000000073 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A10000000000000000000017 /* ScoringTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		A10000000000000000000032 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A10000000000000000000002 /* SurvivorDraft */;
+			targetProxy = A10000000000000000000031 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		A10000000000000000000091 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_TESTABILITY = YES;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.9;
+			};
+			name = Debug;
+		};
+		A10000000000000000000092 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.9;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		A10000000000000000000093 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				CODE_SIGNING_ALLOWED = NO;
+				CODE_SIGNING_REQUIRED = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = SurvivorDraft/Info.plist;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.tanre77.survivordraft;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.9;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		A10000000000000000000094 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				CODE_SIGNING_ALLOWED = NO;
+				CODE_SIGNING_REQUIRED = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = SurvivorDraft/Info.plist;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.tanre77.survivordraft;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.9;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		A10000000000000000000095 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CODE_SIGNING_ALLOWED = NO;
+				CODE_SIGNING_REQUIRED = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.tanre77.survivordraft.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.9;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/SurvivorDraft.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/SurvivorDraft";
+			};
+			name = Debug;
+		};
+		A10000000000000000000096 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CODE_SIGNING_ALLOWED = NO;
+				CODE_SIGNING_REQUIRED = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.tanre77.survivordraft.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.9;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/SurvivorDraft.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/SurvivorDraft";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		A10000000000000000000081 /* Build configuration list for PBXProject "SurvivorDraft" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A10000000000000000000091 /* Debug */,
+				A10000000000000000000092 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A10000000000000000000082 /* Build configuration list for PBXNativeTarget "SurvivorDraft" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A10000000000000000000093 /* Debug */,
+				A10000000000000000000094 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A10000000000000000000083 /* Build configuration list for PBXNativeTarget "SurvivorDraftTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A10000000000000000000095 /* Debug */,
+				A10000000000000000000096 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = A10000000000000000000001 /* Project object */;
+}
