@@ -1,4 +1,4 @@
-export type Tribe = "savu" | "toka";
+export type Tribe = "savu" | "toka" | "dina";
 export type Status = "active" | "out";
 
 export type Contestant = {
@@ -44,7 +44,9 @@ export const contestants: Contestant[] = [
     hometown: "Atlanta, GA",
     job: "Criminal defense attorney",
     tribe: "savu",
-    status: "active",
+    status: "out",
+    boot: "5th voted out · Day 10",
+    revealAt: "2026-10-22T06:00:00.000Z",
   },
   {
     id: "ana",
@@ -75,7 +77,7 @@ export const contestants: Contestant[] = [
     age: 24,
     hometown: "Sioux Falls, SD",
     job: "Livestock farmer",
-    tribe: "savu",
+    tribe: "toka",
     status: "active",
   },
   {
@@ -85,7 +87,7 @@ export const contestants: Contestant[] = [
     age: 25,
     hometown: "Salt Lake City, UT",
     job: "Head of HR",
-    tribe: "savu",
+    tribe: "dina",
     status: "active",
     aliases: ["christian"],
   },
@@ -96,7 +98,7 @@ export const contestants: Contestant[] = [
     age: 33,
     hometown: "Los Angeles, CA",
     job: "Actor",
-    tribe: "toka",
+    tribe: "savu",
     status: "active",
   },
   {
@@ -106,7 +108,7 @@ export const contestants: Contestant[] = [
     age: 34,
     hometown: "Windsor Locks, CT",
     job: "Mental health counselor",
-    tribe: "savu",
+    tribe: "dina",
     status: "active",
   },
   {
@@ -116,7 +118,7 @@ export const contestants: Contestant[] = [
     age: 29,
     hometown: "Bloomington, IN",
     job: "Sociology professor",
-    tribe: "toka",
+    tribe: "savu",
     status: "active",
   },
   {
@@ -126,8 +128,10 @@ export const contestants: Contestant[] = [
     age: 30,
     hometown: "Toledo, OH",
     job: "Wedding photographer",
-    tribe: "toka",
-    status: "active",
+    tribe: "savu",
+    status: "out",
+    boot: "4th voted out · Day 9",
+    revealAt: "2026-10-15T06:00:00.000Z",
   },
   {
     id: "kilby",
@@ -136,7 +140,7 @@ export const contestants: Contestant[] = [
     age: 30,
     hometown: "London, ON",
     job: "Game designer",
-    tribe: "toka",
+    tribe: "dina",
     status: "active",
     aliases: ["danny"],
   },
@@ -147,7 +151,7 @@ export const contestants: Contestant[] = [
     age: 49,
     hometown: "Santa Barbara, CA",
     job: "Crisis management",
-    tribe: "savu",
+    tribe: "toka",
     status: "active",
   },
   {
@@ -157,7 +161,7 @@ export const contestants: Contestant[] = [
     age: 28,
     hometown: "Corozal, PR",
     job: "Farmer",
-    tribe: "toka",
+    tribe: "dina",
     status: "active",
   },
   {
@@ -167,8 +171,10 @@ export const contestants: Contestant[] = [
     age: 25,
     hometown: "Jersey City, NJ",
     job: "Entrepreneur",
-    tribe: "savu",
-    status: "active",
+    tribe: "dina",
+    status: "out",
+    boot: "6th voted out · Day 10",
+    revealAt: "2026-10-22T06:00:00.000Z",
   },
   {
     id: "maggie",
@@ -198,7 +204,9 @@ export const contestants: Contestant[] = [
     hometown: "Spring Valley, NY",
     job: "Personal trainer",
     tribe: "savu",
-    status: "active",
+    status: "out",
+    boot: "7th voted out · Day 12",
+    revealAt: "2026-10-29T01:30:00.000Z",
   },
   {
     id: "patt",
@@ -208,7 +216,9 @@ export const contestants: Contestant[] = [
     hometown: "Washington, D.C.",
     job: "Federal prosecutor",
     tribe: "toka",
-    status: "active",
+    status: "out",
+    boot: "3rd voted out · Day 7",
+    revealAt: "2026-10-08T06:00:00.000Z",
   },
   {
     id: "rob",
@@ -218,7 +228,9 @@ export const contestants: Contestant[] = [
     hometown: "Cumberland, RI",
     job: "Airline gate agent",
     tribe: "savu",
-    status: "active",
+    status: "out",
+    boot: "19th place · Quit · Day 6",
+    revealAt: "2026-10-08T06:00:00.000Z",
   },
   {
     id: "sharonda",
@@ -227,7 +239,7 @@ export const contestants: Contestant[] = [
     age: 34,
     hometown: "Richmond, KY",
     job: "OB/GYN resident",
-    tribe: "savu",
+    tribe: "dina",
     status: "active",
   },
   {
@@ -287,28 +299,42 @@ export function photoSrc(id: string): string {
   return `/cast/${id}.jpg`;
 }
 
-/** Idols found and challenge wins. Counts with a reveal time stay hidden until 11:00 PM Pacific. */
-export const bonuses: Record<string, { idols?: number; wins?: number; winsAt?: string; idolsAt?: string }> = {
-  alexis: { wins: 1 },
+/** Idols found, advantages, successful plays, challenge wins, and final-tribal votes. A reveal time stays hidden until 11:00 PM Pacific. */
+export const bonuses: Record<
+  string,
+  {
+    idols?: number;
+    advantages?: number;
+    plays?: number;
+    wins?: number;
+    votes?: number;
+    winsAt?: string;
+    idolsAt?: string;
+    advantagesAt?: string;
+    playsAt?: string;
+    votesAt?: string;
+  }
+> = {
+  alexis: { wins: 2, winsAt: "2026-10-08T06:00:00.000Z" },
   ana: { wins: 1 },
-  carter: { wins: 1 },
-  cristian: { wins: 1 },
-  eric: { wins: 1 },
-  kristin: { wins: 1 },
-  linnea: { wins: 1 },
-  ori: { wins: 1 },
+  brady: { wins: 3, winsAt: "2026-10-15T06:00:00.000Z" },
+  carter: { wins: 2, winsAt: "2026-10-15T06:00:00.000Z" },
+  cristian: { wins: 3, winsAt: "2026-10-15T06:00:00.000Z" },
+  eric: { wins: 3, winsAt: "2026-10-15T06:00:00.000Z" },
+  kristin: { wins: 3, winsAt: "2026-10-15T06:00:00.000Z" },
+  linnea: { wins: 3, winsAt: "2026-10-15T06:00:00.000Z" },
+  ori: { wins: 2, winsAt: "2026-10-08T06:00:00.000Z" },
   rob: { idols: 1, wins: 1 },
-  sharonda: { wins: 1 },
-  brady: { wins: 2, winsAt: "2026-10-01T06:00:00.000Z" },
+  sharonda: { wins: 3, winsAt: "2026-10-15T06:00:00.000Z" },
   devin: { wins: 2, winsAt: "2026-10-01T06:00:00.000Z" },
   jelly: { wins: 2, winsAt: "2026-10-01T06:00:00.000Z" },
   jenna: { wins: 2, winsAt: "2026-10-01T06:00:00.000Z" },
-  kilby: { wins: 2, winsAt: "2026-10-01T06:00:00.000Z" },
-  lewis: { wins: 2, winsAt: "2026-10-01T06:00:00.000Z" },
-  maggie: { wins: 2, winsAt: "2026-10-01T06:00:00.000Z" },
-  mike: { wins: 2, winsAt: "2026-10-01T06:00:00.000Z" },
+  kilby: { wins: 3, winsAt: "2026-10-15T06:00:00.000Z" },
+  lewis: { wins: 3, winsAt: "2026-10-15T06:00:00.000Z" },
+  maggie: { wins: 3, winsAt: "2026-10-15T06:00:00.000Z" },
+  mike: { wins: 3, winsAt: "2026-10-15T06:00:00.000Z" },
   patt: { wins: 2, winsAt: "2026-10-01T06:00:00.000Z" },
-  "thien-an": { wins: 2, winsAt: "2026-10-01T06:00:00.000Z" },
+  "thien-an": { wins: 3, winsAt: "2026-10-15T06:00:00.000Z" },
 };
 
 function released(at: string | undefined, now: number): boolean {
@@ -328,14 +354,266 @@ export function idolCount(c: Contestant, now = Date.now()): number {
   return row.idols;
 }
 
+export function advantageCount(c: Contestant, now = Date.now()): number {
+  const row = bonuses[c.id];
+  if (!row?.advantages || !released(row.advantagesAt, now)) return 0;
+  return row.advantages;
+}
+
+export function playCount(c: Contestant, now = Date.now()): number {
+  const row = bonuses[c.id];
+  if (!row?.plays || !released(row.playsAt, now)) return 0;
+  return row.plays;
+}
+
 export function winCount(c: Contestant, now = Date.now()): number {
   const row = bonuses[c.id];
   if (!row?.wins || !released(row.winsAt, now)) return 0;
   return row.wins;
 }
 
+export function voteCount(c: Contestant, now = Date.now()): number {
+  const row = bonuses[c.id];
+  if (!row?.votes || !released(row.votesAt, now)) return 0;
+  return row.votes;
+}
+
+/** Advanced only. Finding an idol or advantage is 2, a successful play is 5, an immunity win is 1, a final-tribal vote is 1. */
+export function advancedBonus(c: Contestant, now = Date.now()): number {
+  return (idolCount(c, now) + advantageCount(c, now)) * 2 + playCount(c, now) * 5 + winCount(c, now) + voteCount(c, now);
+}
+
+/** First six boots are pre-jury in advanced scoring. Standard scoring ignores that line. */
+export const PRE_JURY_BOOTS = 6;
+
+export function pointsForPlace(place: number, castSize: number, advanced = false): number {
+  if (!advanced) return place;
+  const preJury = Math.min(PRE_JURY_BOOTS, Math.max(0, castSize - 1));
+  const juryCount = castSize - preJury;
+  if (place <= juryCount) return place;
+  return juryCount + (place - juryCount) * 2;
+}
+
+export function finishPoints(boot: string | undefined, castSize = contestants.length, advanced = false): number | null {
+  if (!boot) return null;
+  const text = boot.toLowerCase();
+  const placed = text.match(/(\d+)(?:st|nd|rd|th) place/);
+  if (placed) {
+    const n = Number(placed[1]);
+    const place = (n === 3 && /finalist|final tribal/.test(text)) || /tie for second|tied for 2nd/.test(text) ? 2 : n;
+    return Math.max(0, pointsForPlace(place, castSize, advanced));
+  }
+  if (/quit|medevac|medical|evacuat/.test(text)) return 0;
+  if (/sole survivor|\bwinner\b/.test(text)) return 1;
+  if (/runner-?up/.test(text)) return pointsForPlace(2, castSize, advanced);
+  const match = text.match(/(\d+)/);
+  if (!match) return null;
+  const n = Number(match[1]);
+  const place = /place|finalist/.test(text) && !/voted out|eliminat/.test(text) ? n : castSize - n + 1;
+  return Math.max(0, pointsForPlace(place, castSize, advanced));
+}
+
+/** Lowest total is 1st. A matching total goes to the better finish, then the next pick. A true tie shares the place. */
+export function compareStandings(
+  a: { total: number; picks: readonly string[] },
+  b: { total: number; picks: readonly string[] },
+  now = Date.now(),
+): number {
+  if (a.total !== b.total) return a.total - b.total;
+  const order = (picks: readonly string[]) =>
+    picks
+      .map((id) => pickPoints(contestantById(id), now) ?? Number.POSITIVE_INFINITY)
+      .sort((left, right) => left - right);
+  const af = order(a.picks);
+  const bf = order(b.picks);
+  const count = Math.max(af.length, bf.length);
+  for (let i = 0; i < count; i += 1) {
+    const av = af[i] ?? Number.POSITIVE_INFINITY;
+    const bv = bf[i] ?? Number.POSITIVE_INFINITY;
+    if (av !== bv) return av - bv;
+  }
+  return 0;
+}
+
+/** Lowest total is 1st. Ties share a place, and the next place skips. */
+export function standingPlace(total: number, totals: number[]): number {
+  return totals.filter((score) => score < total).length + 1;
+}
+
+export function ordinal(place: number): string {
+  const mod = place % 100;
+  if (mod >= 11 && mod <= 13) return `${place}th`;
+  if (place % 10 === 1) return `${place}st`;
+  if (place % 10 === 2) return `${place}nd`;
+  if (place % 10 === 3) return `${place}rd`;
+  return `${place}th`;
+}
+export function bootDay(boot?: string): number {
+  const match = boot?.match(/day\s+(\d+)/i);
+  return match ? Number(match[1]) : 0;
+}
+
+function votedOutOrder(boot?: string): number {
+  const match = boot?.match(/(\d+)(?:st|nd|rd|th) voted out/i);
+  return match ? Number(match[1]) : 0;
+}
+
+/** The people who left on the latest public night. A quit's finish place does not outrank a later vote. */
+export function latestBoots(list: readonly Contestant[] = contestants, now = Date.now()): Contestant[] {
+  const gone = list.filter((c) => isBootPublic(c, now) && bootDay(c.boot) > 0);
+  const day = Math.max(0, ...gone.map((c) => bootDay(c.boot)));
+  return gone.filter((c) => bootDay(c.boot) === day).sort((a, b) => votedOutOrder(a.boot) - votedOutOrder(b.boot));
+}
+
+export function pickPoints(c: Contestant, now = Date.now()): number | null {
+  if (!isBootPublic(c, now)) return null;
+  return finishPoints(c.boot);
+}
+
 export function bonusOf(c: Contestant): number {
   return idolCount(c) + winCount(c);
+}
+
+export type TribalVote = {
+  voter: string;
+  for: string | null;
+  note?: "shot" | "exile";
+};
+
+export type Tribal = {
+  day: number;
+  tribe: Tribe;
+  boot: string;
+  tally: string;
+  revealAt?: string;
+  votes: TribalVote[];
+};
+
+/** Hidden until 11:00 PM Pacific, same as the boot they decide. */
+export const tribals: Tribal[] = [
+  {
+    day: 3,
+    tribe: "toka",
+    boot: "aaliyah",
+    tally: "6–2",
+    votes: [
+      { voter: "brady", for: "aaliyah" },
+      { voter: "kilby", for: "aaliyah" },
+      { voter: "maggie", for: "aaliyah" },
+      { voter: "mike", for: "aaliyah" },
+      { voter: "patt", for: "aaliyah" },
+      { voter: "thien-an", for: "aaliyah" },
+      { voter: "devin", for: "jenna" },
+      { voter: "jelly", for: "jenna" },
+      { voter: "aaliyah", for: null, note: "shot" },
+      { voter: "jenna", for: null, note: "shot" },
+      { voter: "lewis", for: null, note: "exile" },
+    ],
+  },
+  {
+    day: 5,
+    tribe: "savu",
+    boot: "ana",
+    tally: "6–4",
+    revealAt: "2026-10-01T06:00:00.000Z",
+    votes: [
+      { voter: "alexis", for: "ana" },
+      { voter: "cristian", for: "ana" },
+      { voter: "eric", for: "ana" },
+      { voter: "kristin", for: "ana" },
+      { voter: "linnea", for: "ana" },
+      { voter: "sharonda", for: "ana" },
+      { voter: "ana", for: "eric" },
+      { voter: "carter", for: "eric" },
+      { voter: "ori", for: "eric" },
+      { voter: "rob", for: "eric" },
+    ],
+  },
+  {
+    day: 7,
+    tribe: "toka",
+    boot: "patt",
+    tally: "6–5",
+    revealAt: "2026-10-08T06:00:00.000Z",
+    votes: [
+      { voter: "carter", for: "patt" },
+      { voter: "jenna", for: "patt" },
+      { voter: "kilby", for: "patt" },
+      { voter: "lewis", for: "patt" },
+      { voter: "maggie", for: "patt" },
+      { voter: "thien-an", for: "patt" },
+      { voter: "brady", for: "kilby" },
+      { voter: "devin", for: "kilby" },
+      { voter: "jelly", for: "kilby" },
+      { voter: "mike", for: "kilby" },
+      { voter: "patt", for: "kilby" },
+    ],
+  },
+  {
+    day: 9,
+    tribe: "savu",
+    boot: "jenna",
+    tally: "4–1",
+    revealAt: "2026-10-15T06:00:00.000Z",
+    votes: [
+      { voter: "alexis", for: "jenna" },
+      { voter: "devin", for: "jenna" },
+      { voter: "jelly", for: "jenna" },
+      { voter: "ori", for: "jenna" },
+      { voter: "jenna", for: "alexis" },
+    ],
+  },
+  {
+    day: 10,
+    tribe: "savu",
+    boot: "alexis",
+    tally: "3–1",
+    revealAt: "2026-10-22T06:00:00.000Z",
+    votes: [
+      { voter: "devin", for: "alexis" },
+      { voter: "jelly", for: "alexis" },
+      { voter: "ori", for: "alexis" },
+      { voter: "alexis", for: "devin" },
+    ],
+  },
+  {
+    day: 10,
+    tribe: "dina",
+    boot: "linnea",
+    tally: "4–4, then 4–0",
+    revealAt: "2026-10-22T06:00:00.000Z",
+    votes: [
+      { voter: "cristian", for: "linnea" },
+      { voter: "eric", for: "linnea" },
+      { voter: "kilby", for: "linnea" },
+      { voter: "sharonda", for: "linnea" },
+      { voter: "linnea", for: "lewis" },
+    ],
+  },
+  {
+    day: 12,
+    tribe: "savu",
+    boot: "ori",
+    tally: "2–0",
+    revealAt: "2026-10-29T01:30:00.000Z",
+    votes: [
+      { voter: "devin", for: "ori" },
+      { voter: "jelly", for: "ori" },
+    ],
+  },
+];
+
+export function visibleTribals(now = Date.now()): Tribal[] {
+  return tribals.filter((tribal) => released(tribal.revealAt, now));
+}
+
+export function votingRecord(id: string, now = Date.now()) {
+  return visibleTribals(now).flatMap((tribal) => {
+    const mine = tribal.votes.find((vote) => vote.voter === id);
+    const against = tribal.votes.filter((vote) => vote.for === id).map((vote) => vote.voter);
+    if (!mine && against.length === 0) return [];
+    return [{ tribal, mine, against }];
+  });
 }
 
 export function ownersOf(contestantId: string): Manager[] {

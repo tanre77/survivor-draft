@@ -3,7 +3,6 @@
 @import "@fontsource/outfit/latin-400.css";
 @import "@fontsource/outfit/latin-500.css";
 @import "@fontsource/outfit/latin-600.css";
-@import "@fontsource/outfit/latin-700.css";
 
 @theme {
   --color-bg: #100e0c;
@@ -16,6 +15,8 @@
   --color-savu-ink: #f6efff;
   --color-toka: #e2b340;
   --color-toka-ink: #2a2108;
+  --color-dina: #d1006b;
+  --color-dina-ink: #fff5fa;
   --color-ember: #e25b2a;
   --color-ember-ink: #fff6f1;
   --color-boot: #e10600;
@@ -24,16 +25,38 @@
   --font-display: "Bebas Neue", "Arial Narrow", sans-serif;
 }
 
+html[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+html[data-theme="light"] {
+  color-scheme: light;
+  --color-bg: #f4efe6;
+  --color-surface: #fffaf4;
+  --color-surface-2: #efe6d8;
+  --color-fg: #1a140e;
+  --color-muted: #6b5e52;
+  --color-line: #e0d4c4;
+  --color-savu: #5c3d8f;
+  --color-toka: #8a6414;
+  --color-dina: #b0005c;
+  --color-ember: #c2410c;
+  --color-boot: #b10500;
+}
+
 @layer base {
   html {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    height: 100%;
   }
   body {
     background: var(--color-bg);
     color: var(--color-fg);
     font-family: var(--font-sans);
     text-wrap: pretty;
+    height: 100%;
+    overflow: auto;
   }
   button:not(:disabled),
   [role="button"]:not(:disabled) {

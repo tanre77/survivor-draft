@@ -1,28 +1,58 @@
-import { createContext, useContext, useEffect, useId, useMemo, useState, type ReactNode } from "react";
-import { ChevronLeft, ChevronRight, LayoutGrid, ScrollText, Search, Trophy, UserRound, Users, X } from "lucide-react";
-import { HistoryBoard, PastTeam, RulesBoard, SeasonPage } from "@/components/archive";
+import { createContext, lazy, Suspense, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
+import { ChevronLeft, ChevronRight, Gem, LayoutGrid, ScrollText, Search, UserRound, Users, X } from "lucide-react";
 import { reportError, startDiagnostics } from "@/lib/diagnostics";
-import { CreateLeague, CustomBoard, CustomTeam, LeagueHome } from "@/components/league-home";
-import { loadCustomLeagues, newId, saveCustomLeagues, type CustomLeague } from "@/data/custom-leagues";
+import { LeagueHome } from "@/components/league-home";
+import { draftIsFull, lastDrafter, leagueStillOpen, loadCustomLeagues, newId, nextDrafter, rosterKey, saveCustomLeagues, shuffleSeats, takenBy, type CustomLeague } from "@/data/custom-leagues";
+import type { ImportedSheet } from "@/data/import-sheet";
+import { loadProfile, normalizeEmail, saveProfile } from "@/data/profile";
+import { notifyTurn, saveTurnAlert } from "@/lib/turn-mail";
+import { applyTheme, watchTheme } from "@/data/theme";
+import { deleteSharedLeague, fetchSharedLeague, normalizeCode, publishSharedLeague, saveSharedLeague, type SharedLeague } from "@/lib/shared-leagues";
+import { fetchWikiBoots } from "@/lib/wiki-live";
+import { alreadyPinged, markPinged, sameName } from "@/lib/turn-alert";
 import {
   SEAT_KEY,
   contestantBlob,
   contestantById,
+  contestantByName,
   contestants,
   displayName,
+  idolCount,
   isBootPublic,
+  latestBoots,
   managerById,
   managers,
   nameList,
+  ordinal,
   ownersOf,
   photoSrc,
   pickIndex,
+  pickPoints,
+  compareStandings,
+  votingRecord,
+  winCount,
   type Contestant,
   type Manager,
 } from "@/data/league";
 
-type CastFilter = "all" | "savu" | "toka" | "in" | "out" | "mine";
-type Tab = "league" | "cards" | "mine" | "past" | "rules";
+type CastFilter = "all" | "savu" | "toka" | "dina" | "in" | "out" | "mine";
+type Tab = "league" | "cards" | "mine" | "past" | "rules" | "stats";
+
+const StatsBoard = lazy(() => import("@/components/stats-board").then((mod) => ({ default: mod.StatsBoard })));
+const ProfileBoard = lazy(() => import("@/components/profile-board").then((mod) => ({ default: mod.ProfileBoard })));
+const SupportBoard = lazy(() => import("@/components/support-board").then((mod) => ({ default: mod.SupportBoard })));
+const ImportLeague = lazy(() => import("@/components/import-league").then((mod) => ({ default: mod.ImportLeague })));
+const HistoryBoard = lazy(() => import("@/components/archive").then((mod) => ({ default: mod.HistoryBoard })));
+const PastTeam = lazy(() => import("@/components/archive").then((mod) => ({ default: mod.PastTeam })));
+const RulesBoard = lazy(() => import("@/components/archive").then((mod) => ({ default: mod.RulesBoard })));
+const SeasonPage = lazy(() => import("@/components/archive").then((mod) => ({ default: mod.SeasonPage })));
+const CreateLeague = lazy(() => import("@/components/custom-league").then((mod) => ({ default: mod.CreateLeague })));
+const CustomBoard = lazy(() => import("@/components/custom-league").then((mod) => ({ default: mod.CustomBoard })));
+const CustomTeam = lazy(() => import("@/components/custom-league").then((mod) => ({ default: mod.CustomTeam })));
+
+function Later({ children }: { children: ReactNode }) {
+  return <Suspense fallback={<p className="py-8 text-sm text-muted">Loading…</p>}>{children}</Suspense>;
+}
 
 const ClockContext = createContext(0);
 
@@ -32,6 +62,7 @@ function useNow(): number {
 type Place =
   | { view: "home" }
   | { view: "make" }
+  | { view: "import" }
   | { view: "s51" }
   | { view: "custom"; id: string }
   | { view: "past"; id: string };
@@ -41,6 +72,7 @@ const FILTERS: { id: CastFilter; label: string }[] = [
   { id: "all", label: "All" },
   { id: "savu", label: "Savu" },
   { id: "toka", label: "Toka" },
+  { id: "dina", label: "Dina" },
   { id: "in", label: "Still in" },
   { id: "out", label: "Out" },
   { id: "mine", label: "Yours" },
@@ -53,6 +85,9 @@ export function DraftLeague() {
   const [place, setPlace] = useState<Place>({ view: "home" });
   const [leagues, setLeagues] = useState<CustomLeague[]>([]);
   const [tab, setTab] = useState<Tab>("league");
+  const [section, setSection] = useState<"board" | "stats" | "past">("board");
+  const [homeTab, setHomeTab] = useState<"leagues" | "you">("leagues");
+  const [profileName, setProfileName] = useState("");
   const [teamId, setTeamId] = useState<string | null>(null);
   const [pastTeam, setPastTeam] = useState<{ seasonId: string; name: string } | null>(null);
   const [customSeat, setCustomSeat] = useState<string | null>(null);
@@ -60,14 +95,69 @@ export function DraftLeague() {
   const [filter, setFilter] = useState<CastFilter>("all");
   const [stack, setStack] = useState<Panel[]>([]);
   const [now, setNow] = useState(() => Date.now());
+  const [wikiRev, setWikiRev] = useState(0);
+  const [invited, setInvited] = useState<string | null>(null);
+  const [inviteError, setInviteError] = useState("");
+  const linkHandled = useRef(false);
+  const leaguesRef = useRef(leagues);
+  leaguesRef.current = leagues;
+  const saveFlight = useRef(0);
 
   useEffect(() => {
     const saved = localStorage.getItem(SEAT_KEY);
     if (saved && managerById(saved)) setSeatId(saved);
     setLeagues(loadCustomLeagues());
+    setProfileName(loadProfile().name);
     setReady(true);
     startDiagnostics();
+    applyTheme();
+    return watchTheme();
   }, []);
+
+  useEffect(() => {
+    if (!ready || linkHandled.current) return;
+    const params = new URLSearchParams(window.location.search);
+    const raw = params.get("join");
+    if (!raw) return;
+    linkHandled.current = true;
+    const named = (params.get("name") ?? "").trim().slice(0, 40);
+    if (named) {
+      saveProfile({ name: named });
+      setProfileName(named);
+    }
+    const url = new URL(window.location.href);
+    url.searchParams.delete("join");
+    url.searchParams.delete("name");
+    window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+    const code = normalizeCode(raw);
+    void fetchSharedLeague({ data: code })
+      .then(async (shared) => {
+        if (!shared) return;
+        let seats = shared.seats;
+        if (named && !seats.some((seat) => seat.name.toLowerCase() === named.toLowerCase())) {
+          seats = [...seats, { id: newId(), name: named, picks: [] }];
+          const saved = await saveSharedLeague({ data: { ...shared, seats } });
+          seats = saved.seats;
+        }
+        const existing = leaguesRef.current.find((item) => item.code === shared.code || item.id === shared.code);
+        const id = existing?.id ?? shared.code;
+        const next: CustomLeague = {
+          id,
+          name: shared.name,
+          bonus: shared.bonus,
+          trades: shared.trades,
+          drafting: shared.drafting,
+          advanced: shared.advanced,
+          headToHead: shared.headToHead,
+          seats,
+          code: shared.code,
+        };
+        setLeagues((list) => (existing ? list.map((item) => (item.id === id ? next : item)) : [next, ...list]));
+        setCustomSeat(shared.drafting ? null : seats.find((seat) => seat.name.toLowerCase() === named.toLowerCase())?.id ?? null);
+        setPlace({ view: "custom", id });
+      })
+      .catch(() => undefined);
+  }, [ready]);
 
   useEffect(() => {
     function onError(event: ErrorEvent) {
@@ -81,6 +171,94 @@ export function DraftLeague() {
     if (ready) saveCustomLeagues(leagues);
   }, [leagues, ready]);
 
+  function applyShared(shared: SharedLeague) {
+    setLeagues((list) => {
+      const existing = list.find((item) => item.code === shared.code || item.id === shared.code);
+      const id = existing?.id ?? shared.code;
+      const next: CustomLeague = {
+        id,
+        name: shared.name,
+        bonus: shared.bonus,
+        trades: shared.trades,
+        drafting: shared.drafting,
+        advanced: shared.advanced,
+        headToHead: shared.headToHead,
+        seats: shared.seats,
+        code: shared.code,
+      };
+      if (!existing) return [next, ...list];
+      if (existing.drafting === false) next.drafting = false;
+      const localMade = existing.seats.reduce((sum, seat) => sum + seat.picks.length, 0);
+      const remoteMade = shared.seats.reduce((sum, seat) => sum + seat.picks.length, 0);
+      if (localMade > remoteMade) return list;
+      if (
+        existing.name === next.name &&
+        existing.bonus === next.bonus &&
+        existing.trades === next.trades &&
+        existing.drafting === next.drafting &&
+        existing.advanced === next.advanced &&
+        existing.headToHead === next.headToHead &&
+        JSON.stringify(existing.seats) === JSON.stringify(next.seats)
+      ) {
+        return list;
+      }
+      return list.map((item) => (item.id === id ? next : item));
+    });
+  }
+
+  useEffect(() => {
+    if (!ready) return;
+    const syncing = leagues.some(
+      (league) => league.code && league.drafting !== false && !league.seats.some((seat) => seat.scores != null && seat.scores.length > 0),
+    );
+    if (!syncing) return;
+    let stop = false;
+    async function tick() {
+      if (stop || document.visibilityState === "hidden") return;
+      const open = leaguesRef.current.filter(
+        (league) => league.code && league.drafting !== false && !league.seats.some((seat) => seat.scores != null && seat.scores.length > 0),
+      );
+      await Promise.all(
+        open.map(async (league) => {
+          const shared = await fetchSharedLeague({ data: league.code ?? "" }).catch(() => null);
+          if (!shared || stop || saveFlight.current > 0) return;
+          applyShared(shared);
+        }),
+      );
+    }
+    void tick();
+    const id = window.setInterval(() => void tick(), 2000);
+    return () => {
+      stop = true;
+      window.clearInterval(id);
+    };
+  }, [ready, leagues]);
+
+  useEffect(() => {
+    if (!ready || !profileName.trim()) return;
+    for (const league of leagues) {
+      if (!league.code || league.drafting === false) continue;
+      if (league.seats.some((seat) => seat.scores != null && seat.scores.length > 0)) continue;
+      const clock = nextDrafter(league.seats);
+      if (!clock || !sameName(clock.name, profileName)) continue;
+      const key = `${league.code}:${league.seats.reduce((sum, seat) => sum + seat.picks.length, 0)}`;
+      if (alreadyPinged(key)) continue;
+      const email = loadProfile().email;
+      if (!email) continue;
+      void notifyTurn({
+        data: {
+          code: league.code,
+          league: league.name,
+          drafting: true,
+          origin: window.location.origin,
+          seats: league.seats,
+        },
+      }).then((result) => {
+        if (result.sent) markPinged(key);
+      });
+    }
+  }, [leagues, profileName, ready]);
+
   useEffect(() => {
     const next = contestants
       .map((c) => (c.revealAt ? Date.parse(c.revealAt) : Number.NaN))
@@ -89,11 +267,54 @@ export function DraftLeague() {
     if (next == null) return;
     const id = window.setTimeout(() => setNow(Date.now()), next - now + 250);
     return () => window.clearTimeout(id);
-  }, [now]);
+  }, [now, wikiRev]);
+
+  useEffect(() => {
+    let cancel = false;
+    async function pull() {
+      if (cancel || document.visibilityState === "hidden") return;
+      try {
+        const boots = await fetchWikiBoots();
+        if (cancel) return;
+        let changed = false;
+        for (const boot of boots) {
+          const player = contestants.find((contestant) => contestant.id === boot.id);
+          if (!player || player.status === "out") continue;
+          player.status = "out";
+          player.boot = boot.boot;
+          player.revealAt = boot.revealAt;
+          changed = true;
+        }
+        if (changed) setWikiRev((rev) => rev + 1);
+      } catch {
+        /* keep the board already on screen */
+      }
+    }
+    const start = window.setTimeout(() => void pull(), 1200);
+    const id = window.setInterval(() => void pull(), 10 * 60 * 1000);
+    function onShow() {
+      if (document.visibilityState === "visible") void pull();
+    }
+    document.addEventListener("visibilitychange", onShow);
+    return () => {
+      cancel = true;
+      window.clearTimeout(start);
+      window.clearInterval(id);
+      document.removeEventListener("visibilitychange", onShow);
+    };
+  }, []);
 
   const seat = seatId ? managerById(seatId) : null;
   const custom = place.view === "custom" ? leagues.find((l) => l.id === place.id) : undefined;
   const customPerson = custom && customSeat ? custom.seats.find((s) => s.id === customSeat) : undefined;
+
+  useEffect(() => {
+    if (!ready || !custom || custom.drafting === false) return;
+    if (custom.seats.some((seat) => seat.scores != null && seat.scores.length > 0)) return;
+    if (!draftIsFull(custom.seats)) return;
+    setCustomSeat(null);
+    updateLeague({ ...custom, drafting: false });
+  }, [ready, custom]);
 
   function chooseSeat(id: string) {
     localStorage.setItem(SEAT_KEY, id);
@@ -144,6 +365,54 @@ export function DraftLeague() {
 
   function updateLeague(next: CustomLeague) {
     setLeagues((list) => list.map((league) => (league.id === next.id ? next : league)));
+    if (!next.code) return;
+    const flight = ++saveFlight.current;
+    void saveSharedLeague({
+      data: {
+        code: next.code,
+        name: next.name,
+        bonus: next.bonus,
+        trades: next.trades,
+        drafting: next.drafting,
+        advanced: next.advanced,
+        headToHead: next.headToHead,
+        seats: next.seats,
+      },
+    })
+      .then((shared) => {
+        if (saveFlight.current === flight) applyShared(shared);
+        void notifyTurn({
+          data: {
+            code: shared.code,
+            league: shared.name,
+            drafting: shared.drafting,
+            origin: window.location.origin,
+            seats: shared.seats,
+          },
+        }).catch(() => undefined);
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (saveFlight.current === flight) saveFlight.current = 0;
+      });
+  }
+
+  function storeShared(shared: SharedLeague) {
+    const existing = leagues.find((item) => item.code === shared.code || item.id === shared.code);
+    const id = existing?.id ?? shared.code;
+    const next: CustomLeague = {
+      id,
+      name: shared.name,
+      bonus: shared.bonus,
+      trades: shared.trades,
+      drafting: shared.drafting,
+      advanced: shared.advanced,
+      headToHead: shared.headToHead,
+      seats: shared.seats,
+      code: shared.code,
+    };
+    setLeagues((list) => (existing ? list.map((item) => (item.id === id ? next : item)) : [next, ...list]));
+    return id;
   }
 
   if (choosing) {
@@ -159,9 +428,8 @@ export function DraftLeague() {
   }
 
   const liveSeat = place.view === "s51" ? seat : null;
-  const bare = place.view === "home" || place.view === "make";
-  const showSearch = liveSeat && !teamId && (tab === "league" || tab === "cards");
-  const showNav = Boolean(liveSeat);
+  const bare = place.view === "home" || place.view === "make" || place.view === "import";
+  const showSearch = liveSeat && !teamId && (tab === "cards" || (tab === "league" && section === "board"));
   const panel = stack[stack.length - 1] ?? null;
   const backLabel =
     place.view === "s51" && teamId
@@ -173,12 +441,31 @@ export function DraftLeague() {
           : place.view === "custom" && customSeat
             ? "League"
             : "Leagues";
+  const turnCall = leagues.flatMap((league) => {
+    if (league.drafting === false) return [];
+    if (league.seats.some((seat) => seat.scores != null && seat.scores.length > 0)) return [];
+    const clock = nextDrafter(league.seats);
+    if (!clock || !sameName(clock.name, profileName)) return [];
+    return [{ id: league.id, league: league.name, seatId: clock.id, who: clock.name }];
+  })[0];
 
   return (
     <ClockContext.Provider value={now}>
-    <div className="min-h-dvh bg-bg text-fg">
-      {place.view !== "home" && place.view !== "make" && (
-        <header className="safe-top sticky top-0 z-20 border-b border-line bg-bg/95 backdrop-blur">
+    <div className="flex h-full flex-col overflow-hidden bg-bg text-fg">
+      {turnCall && (
+        <button
+          type="button"
+          onClick={() => {
+            setCustomSeat(turnCall.seatId);
+            setPlace({ view: "custom", id: turnCall.id });
+          }}
+          className="shrink-0 bg-ember px-4 py-3 text-left text-sm font-semibold text-ember-ink"
+        >
+          {turnCall.who}, you're on the clock in {turnCall.league}.
+        </button>
+      )}
+      {place.view !== "home" && place.view !== "make" && place.view !== "import" && (
+        <header className="safe-top z-20 shrink-0 border-b border-line bg-bg/95">
           <div className="mx-auto flex max-w-5xl items-end justify-between gap-3 px-4 pt-3 pb-3">
             <div>
               <button type="button" onClick={goBack} className="inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-muted">
@@ -186,6 +473,9 @@ export function DraftLeague() {
                 {backLabel}
               </button>
               {place.view === "s51" && <p className="text-xs font-semibold tracking-widest text-toka">IN PROGRESS</p>}
+              {place.view === "custom" && custom && leagueStillOpen(custom) && (
+                <p className="text-xs font-semibold tracking-widest text-toka">IN PROGRESS</p>
+              )}
               {place.view === "s51" && (
                 <h1 className="font-display text-5xl leading-none">
                   Survivor <span className="text-toka">51</span>
@@ -197,7 +487,7 @@ export function DraftLeague() {
                 <button
                   type="button"
                   onClick={() => openTeam(seat.id)}
-                  className="rounded-xl px-3 py-2 text-sm font-semibold"
+                  className="rounded-xl px-3 py-2 text-sm font-semibold ring-1 ring-fg/15"
                   style={{ background: seat.bg, color: seat.fg }}
                 >
                   {seat.name}
@@ -240,8 +530,8 @@ export function DraftLeague() {
         </header>
       )}
 
-      <main className={`mx-auto max-w-5xl px-4 pt-4 ${bare ? "safe-top" : ""} ${showNav ? "pb-28" : "pb-10"}`}>
-        {place.view === "home" && (
+      <main className={`mx-auto min-h-0 w-full max-w-5xl flex-1 overflow-y-auto px-4 pt-4 pb-8 ${bare ? "safe-top" : ""}`}>
+        {place.view === "home" && homeTab === "leagues" && (
           <LeagueHome
             leagues={leagues}
             onOpenLive={() => {
@@ -252,53 +542,220 @@ export function DraftLeague() {
               if (!seat) setChoosing(true);
             }}
             onOpenCustom={(id) => {
+              setInvited(null);
+              setInviteError("");
               setCustomSeat(null);
               setPlace({ view: "custom", id });
             }}
             onCreate={() => setPlace({ view: "make" })}
-            onOpenPast={(id) => {
-              setPastTeam(null);
-              setPlace({ view: "past", id });
+            onImport={() => setPlace({ view: "import" })}
+            profileName={profileName}
+            onSaveName={(name) => {
+              saveProfile({ name });
+              setProfileName(name.trim());
+            }}
+            onJoin={async (raw) => {
+              const code = normalizeCode(raw);
+              const shared = await fetchSharedLeague({ data: code });
+              if (!shared) throw new Error("No league uses that code.");
+              const name = loadProfile().name.trim();
+              let seats = shared.seats;
+              if (name && !seats.some((seat) => seat.name.toLowerCase() === name.toLowerCase())) {
+                seats = [...seats, { id: newId(), name, picks: [] }];
+                const saved = await saveSharedLeague({ data: { ...shared, seats } });
+                seats = saved.seats;
+              }
+              const id = storeShared({ ...shared, seats });
+              setCustomSeat(null);
+              setPlace({ view: "custom", id });
             }}
           />
+        )}
+        {place.view === "home" && homeTab === "you" && (
+          <Later>
+            <ProfileBoard
+              leagues={leagues}
+              onName={(name) => {
+                saveProfile({ name });
+                setProfileName(name);
+              }}
+            />
+            <SupportBoard you={profileName} />
+          </Later>
         )}
         {place.view === "make" && (
-          <CreateLeague
+          <Later>
+            <CreateLeague
+            you={profileName}
             onCancel={() => setPlace({ view: "home" })}
-            onCreate={(league) => {
-              setLeagues((list) => [league, ...list]);
-              setCustomSeat(null);
-              setPlace({ view: "custom", id: league.id });
+            onCreate={(league, invite) => {
+              if (invite) {
+                setInvited(invite);
+                setInviteError("");
+              }
+              return publishSharedLeague({
+                data: {
+                  name: league.name,
+                  bonus: league.bonus,
+                  trades: league.trades,
+                  drafting: league.drafting,
+                  advanced: league.advanced,
+                  headToHead: league.headToHead,
+                  seats: league.seats,
+                },
+              })
+                .then((shared) => {
+                  const nextLeague = { ...league, code: shared.code, seats: shared.seats };
+                  setLeagues((list) => [nextLeague, ...list]);
+                  setCustomSeat(null);
+                  setPlace({ view: "custom", id: nextLeague.id });
+                  for (const seat of shared.seats) {
+                    const email = seat.reach && seat.reach.kind !== "twitter" ? normalizeEmail(seat.reach.value) : "";
+                    if (email) void saveTurnAlert({ data: { code: shared.code, name: seat.name, email } }).catch(() => undefined);
+                  }
+                  return shared.code;
+                })
+                .catch(() => {
+                  setLeagues((list) => [league, ...list]);
+                  setCustomSeat(null);
+                  setPlace({ view: "custom", id: league.id });
+                });
             }}
           />
+          </Later>
+        )}
+        {place.view === "import" && (
+          <Later>
+            <ImportLeague
+              onCancel={() => setPlace({ view: "home" })}
+              onImport={(sheets) => {
+                setLeagues((list) => [...importedLeagues(list, sheets), ...list]);
+                setCustomSeat(null);
+                setPlace({ view: "home" });
+              }}
+            />
+          </Later>
         )}
         {place.view === "custom" && custom && !customPerson && (
+          <Later>
           <CustomBoard
             league={custom}
             onOpenSeat={setCustomSeat}
-            onAddSeat={(name) =>
-              updateLeague({ ...custom, seats: [...custom.seats, { id: newId(), name, picks: [] }] })
-            }
+            onAddSeat={(name, reach) => {
+              const seats = [...custom.seats, { id: newId(), name, picks: [], ...(reach ? { reach } : {}) }];
+              const next = { ...custom, seats };
+              setInvited(name);
+              setInviteError("");
+              const email = reach && reach.kind !== "twitter" ? normalizeEmail(reach.value) : "";
+              const remember = (code: string) => {
+                if (!email) return;
+                void saveTurnAlert({ data: { code, name, email } }).catch(() => undefined);
+              };
+              if (next.code) {
+                updateLeague(next);
+                remember(next.code);
+                return;
+              }
+              setLeagues((list) => list.map((league) => (league.id === next.id ? next : league)));
+              void publishSharedLeague({
+                data: {
+                  name: next.name,
+                  bonus: next.bonus,
+                  trades: next.trades,
+                  drafting: next.drafting,
+                  advanced: next.advanced,
+                  headToHead: next.headToHead,
+                  seats: next.seats,
+                },
+              })
+                .then((shared) => {
+                  updateLeague({ ...next, code: shared.code, seats: shared.seats });
+                  remember(shared.code);
+                })
+                .catch(() => setInviteError("Couldn't make the invite link. Try again."));
+            }}
             onCloseDraft={() => updateLeague({ ...custom, drafting: false })}
             onDelete={() => {
+              if (custom.code) void deleteSharedLeague({ data: custom.code }).catch(() => undefined);
               setLeagues((list) => list.filter((league) => league.id !== custom.id));
               setPlace({ view: "home" });
             }}
+            onInvite={() => {
+              void publishSharedLeague({
+                data: {
+                  name: custom.name,
+                  bonus: custom.bonus,
+                  trades: custom.trades,
+                  drafting: custom.drafting,
+                  advanced: custom.advanced,
+                  headToHead: custom.headToHead,
+                  seats: custom.seats,
+                },
+              })
+                .then((shared) => updateLeague({ ...custom, code: shared.code, seats: shared.seats }))
+                .catch(() => undefined);
+            }}
+            onShuffle={() => {
+              if (custom.seats.some((seat) => seat.picks.length > 0)) return;
+              updateLeague({ ...custom, seats: shuffleSeats(custom.seats) });
+            }}
+            you={profileName}
+            invited={invited}
+            inviteError={inviteError}
+            onDraft={(seatId, picks) => {
+              if (!custom.drafting) return "The draft is closed.";
+              const clock = nextDrafter(custom.seats);
+              if (!clock || clock.id !== seatId) return "It's not your turn.";
+              if (!sameName(clock.name, profileName)) return "Save your name on the You tab so it matches your seat.";
+              if (picks.length !== clock.picks.length + 1 || picks.length > 3) return "Submit one new player.";
+              const added = picks[picks.length - 1];
+              const player = added ? contestantByName(added) : undefined;
+              if (!player || isBootPublic(player)) return "That player is already out.";
+              if (takenBy(custom.seats, picks, [seatId])) return "Another team already has that exact roster.";
+              const shares = custom.seats.reduce((sum, seat) => {
+                if (seat.id === seatId) return sum;
+                return sum + seat.picks.filter((pick) => contestantByName(pick)?.id === player.id).length;
+              }, 0);
+              if (shares >= 4) return "That player is already on 4 teams.";
+              const seats = custom.seats.map((seat) => (seat.id === seatId ? { ...seat, picks } : seat));
+              const done = draftIsFull(seats);
+              updateLeague({ ...custom, seats, drafting: done ? false : custom.drafting });
+              if (done) setCustomSeat(null);
+            }}
           />
+          </Later>
         )}
         {customPerson && (
+          <Later>
           <CustomTeam
             seat={customPerson}
             seats={custom?.seats ?? []}
             bonus={custom?.bonus === true}
+            advanced={custom?.advanced === true}
             drafting={custom?.drafting !== false}
             trades={custom?.trades === true}
+            canDraft={!custom?.seats.some((seat) => sameName(seat.name, profileName)) || sameName(customPerson.name, profileName)}
             onChange={(picks) => {
-              if (!custom || !custom.drafting) return;
-              updateLeague({
-                ...custom,
-                seats: custom.seats.map((s) => (s.id === customPerson.id ? { ...s, picks } : s)),
-              });
+              if (!custom || !custom.drafting) return "The draft is closed.";
+              const adding = picks.length > customPerson.picks.length;
+              const removing = picks.length < customPerson.picks.length;
+              if (adding && picks.length > 3) return "Your team already has 3 picks.";
+              if (adding && nextDrafter(custom.seats)?.id !== customPerson.id) return "It's not your turn.";
+              if (removing && lastDrafter(custom.seats)?.id !== customPerson.id) return "You can only take back the last pick.";
+              if (takenBy(custom.seats, picks, [customPerson.id])) return "Another team already has that exact roster.";
+              if (adding) {
+                const added = picks[picks.length - 1];
+                const player = added ? contestantByName(added) : undefined;
+                const shares = custom.seats.reduce((sum, seat) => {
+                  if (seat.id === customPerson.id) return sum;
+                  return sum + seat.picks.filter((pick) => (player ? contestantByName(pick)?.id === player.id : pick.trim().toLowerCase() === added?.trim().toLowerCase())).length;
+                }, 0);
+                if (shares >= 4) return "That player is already on 4 teams.";
+              }
+              const seats = custom.seats.map((s) => (s.id === customPerson.id ? { ...s, picks } : s));
+              const done = draftIsFull(seats);
+              updateLeague({ ...custom, seats, drafting: done ? false : custom.drafting });
+              if (done) setCustomSeat(null);
             }}
             onTrade={(myIndex, otherId, theirIndex) => {
               if (!custom || !custom.drafting || !custom.trades) return;
@@ -312,6 +769,9 @@ export function DraftLeague() {
               if (offered == null || wanted == null) return;
               minePicks[myIndex] = wanted;
               otherPicks[theirIndex] = offered;
+              if (takenBy(custom.seats, minePicks, [mine.id, other.id])) return;
+              if (takenBy(custom.seats, otherPicks, [mine.id, other.id])) return;
+              if (rosterKey(minePicks) && rosterKey(minePicks) === rosterKey(otherPicks)) return;
               updateLeague({
                 ...custom,
                 seats: custom.seats.map((s) => {
@@ -322,11 +782,18 @@ export function DraftLeague() {
               });
             }}
           />
+          </Later>
         )}
         {place.view === "past" && !pastTeam && (
-          <SeasonPage seasonId={place.id} seatName={seat?.name ?? ""} onOpenTeam={(name) => setPastTeam({ seasonId: place.id, name })} />
+          <Later>
+            <SeasonPage seasonId={place.id} seatName={seat?.name ?? ""} onOpenTeam={(name) => setPastTeam({ seasonId: place.id, name })} />
+          </Later>
         )}
-        {place.view === "past" && pastTeam && <PastTeam seasonId={pastTeam.seasonId} name={pastTeam.name} />}
+        {place.view === "past" && pastTeam && (
+          <Later>
+            <PastTeam seasonId={pastTeam.seasonId} name={pastTeam.name} />
+          </Later>
+        )}
         {liveSeat && teamId && (
           <Roster
             manager={managerById(teamId) ?? liveSeat}
@@ -336,25 +803,76 @@ export function DraftLeague() {
           />
         )}
         {liveSeat && !teamId && tab === "league" && (
-          <LeagueBoard seat={liveSeat} query={query} onOpenManager={openTeam} onOpenPlayer={(id) => setStack([{ kind: "player", id }])} />
+          <div>
+            <div className="mb-4 flex gap-2">
+              {(
+                [
+                  ["board", "Standings"],
+                  ["stats", "Stats"],
+                  ["past", "Past"],
+                ] as const
+              ).map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => {
+                    setSection(id);
+                    setPastTeam(null);
+                  }}
+                  className={`rounded-full px-3 py-1.5 text-sm font-semibold ${section === id ? "bg-toka text-toka-ink" : "bg-surface text-muted"}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {section === "board" && (
+              <LeagueBoard seat={liveSeat} query={query} onOpenManager={openTeam} onOpenPlayer={(id) => setStack([{ kind: "player", id }])} />
+            )}
+            {section === "stats" && (
+              <Later>
+                <GameStats onOpenPlayer={(id) => setStack([{ kind: "player", id }])} />
+                <div className="mt-8">
+                  <StatsBoard seatName={liveSeat.name} />
+                </div>
+              </Later>
+            )}
+            {section === "past" && !pastTeam && (
+              <Later>
+                <HistoryBoard seatName={liveSeat.name} onOpenTeam={(seasonId, name) => setPastTeam({ seasonId, name })} />
+              </Later>
+            )}
+            {section === "past" && pastTeam && (
+              <Later>
+                <PastTeam seasonId={pastTeam.seasonId} name={pastTeam.name} />
+              </Later>
+            )}
+          </div>
         )}
         {liveSeat && !teamId && tab === "cards" && (
           <CardBoard seat={liveSeat} query={query} filter={filter} onOpenPlayer={(id) => setStack([{ kind: "player", id }])} />
         )}
-        {liveSeat && !teamId && tab === "past" && !pastTeam && (
-          <HistoryBoard seatName={liveSeat.name} onOpenTeam={(seasonId, name) => setPastTeam({ seasonId, name })} />
+        {liveSeat && !teamId && tab === "rules" && (
+          <Later>
+            <RulesBoard />
+          </Later>
         )}
-        {liveSeat && !teamId && tab === "past" && pastTeam && <PastTeam seasonId={pastTeam.seasonId} name={pastTeam.name} />}
-        {liveSeat && !teamId && tab === "rules" && <RulesBoard />}
       </main>
 
+      {place.view === "home" && (
+        <nav className="dock shrink-0 border-t border-line bg-bg">
+          <div className="mx-auto grid max-w-5xl grid-cols-2">
+            <TabButton icon={<Users className="size-5" />} label="Leagues" active={homeTab === "leagues"} onClick={() => setHomeTab("leagues")} />
+            <TabButton icon={<UserRound className="size-5" />} label="You" active={homeTab === "you"} onClick={() => setHomeTab("you")} />
+          </div>
+        </nav>
+      )}
+
       {liveSeat && (
-        <nav className="dock fixed inset-x-0 bottom-0 z-30 border-t border-line bg-bg/95 backdrop-blur">
-          <div className="mx-auto grid max-w-5xl grid-cols-5">
+        <nav className="dock shrink-0 border-t border-line bg-bg">
+          <div className="mx-auto grid max-w-5xl grid-cols-4">
             <TabButton icon={<Users className="size-5" />} label="League" active={tab === "league" && teamId !== liveSeat.id} onClick={() => selectTab("league")} />
             <TabButton icon={<LayoutGrid className="size-5" />} label="Cards" active={tab === "cards" && !teamId} onClick={() => selectTab("cards")} />
             <TabButton icon={<UserRound className="size-5" />} label="Mine" active={teamId === liveSeat.id} onClick={() => selectTab("mine")} />
-            <TabButton icon={<Trophy className="size-5" />} label="Past" active={tab === "past" && !teamId} onClick={() => selectTab("past")} />
             <TabButton icon={<ScrollText className="size-5" />} label="Rules" active={tab === "rules" && !teamId} onClick={() => selectTab("rules")} />
           </div>
         </nav>
@@ -376,9 +894,37 @@ export function DraftLeague() {
   );
 }
 
+function importedLeagues(existing: CustomLeague[], sheets: ImportedSheet[]): CustomLeague[] {
+  const names = new Set(existing.map((league) => league.name.toLowerCase()));
+  return sheets.map((sheet) => {
+    let name = sheet.name;
+    if (names.has(name.toLowerCase())) name = `${name} sheet`;
+    while (names.has(name.toLowerCase())) name = `${name} again`;
+    names.add(name.toLowerCase());
+    return {
+      id: newId(),
+      name,
+      bonus: false,
+      trades: false,
+      drafting: !sheet.scored,
+      advanced: false,
+      headToHead: false,
+      seats: sheet.seats.map((seat) => ({
+        id: newId(),
+        name: seat.name,
+        picks: seat.picks,
+        ...(seat.scores && seat.scores.length ? { scores: seat.scores } : {}),
+        ...(seat.total ? { total: seat.total } : {}),
+        ...(seat.prize ? { prize: seat.prize } : {}),
+        ...(seat.place != null ? { place: seat.place } : {}),
+      })),
+    };
+  });
+}
+
 function Gate({ onPick, onCancel }: { onPick: (id: string) => void; onCancel?: () => void }) {
   return (
-    <main className="safe-top mx-auto flex min-h-dvh max-w-3xl flex-col bg-bg px-4 pb-10 text-fg">
+    <main className="safe-top mx-auto flex max-w-3xl flex-col bg-bg px-4 pb-10 text-fg">
       <header className="pt-8">
         <p className="text-xs font-semibold tracking-widest text-muted">SURVIVOR 51 DRAFT</p>
         <h1 className="mt-2 font-display text-6xl leading-none">
@@ -399,7 +945,7 @@ function Gate({ onPick, onCancel }: { onPick: (id: string) => void; onCancel?: (
             <button
               type="button"
               onClick={() => onPick(m.id)}
-              className="flex min-h-12 w-full items-center justify-center rounded-xl text-base font-semibold"
+              className="flex min-h-12 w-full items-center justify-center rounded-xl text-base font-semibold ring-1 ring-fg/15"
               style={{ background: m.bg, color: m.fg }}
             >
               {m.name}
@@ -411,30 +957,34 @@ function Gate({ onPick, onCancel }: { onPick: (id: string) => void; onCancel?: (
   );
 }
 
-function bootRank(boot?: string): number {
-  const match = boot?.match(/^(\d+)/);
-  return match ? Number(match[1]) : 0;
-}
-
 function BootCallout({ onOpenPlayer }: { onOpenPlayer: (id: string) => void }) {
   const now = useNow();
-  const latest = contestants
-    .filter((c) => isBootPublic(c, now))
-    .sort((a, b) => bootRank(b.boot) - bootRank(a.boot))[0];
-  if (!latest) return null;
-  const owners = ownersOf(latest.id);
+  const latest = latestBoots(contestants, now);
+  if (latest.length === 0) return null;
+  const title = latest.length === 1 ? `${latest[0].first} is out` : `${nameList(latest.map((c) => c.first))} are out`;
   return (
     <div className="mb-4 rounded-2xl bg-boot/15 px-4 py-4">
-      <button type="button" onClick={() => onOpenPlayer(latest.id)} className="text-left">
-        <p className="font-display text-3xl leading-none text-boot">{latest.first} is out</p>
-        <p className="mt-2 text-sm text-fg">
-          {latest.boot}.{" "}
-          {owners.length === 0
-            ? `Nobody drafted ${latest.first}.`
-            : `Drafted by ${nameList(owners.map((m) => m.name))}.`}
-        </p>
-        <p className="mt-3 text-sm font-semibold text-boot">Open {latest.first}'s card</p>
-      </button>
+      <p className="font-display text-3xl leading-none text-boot">{title}</p>
+      <ul className="mt-3 flex flex-col gap-3">
+        {latest.map((player) => {
+          const owners = ownersOf(player.id);
+          const points = pickPoints(player, now);
+          return (
+            <li key={player.id}>
+              <button type="button" onClick={() => onOpenPlayer(player.id)} className="text-left">
+                <p className="text-sm text-fg">
+                  <span className="font-semibold">{player.first}.</span> {player.boot}
+                  {points != null ? `. That’s ${points} points.` : "."}{" "}
+                  {owners.length === 0
+                    ? `Nobody drafted ${player.first}.`
+                    : `Drafted by ${nameList(owners.map((m) => m.name))}.`}
+                </p>
+                <p className="mt-1 text-sm font-semibold text-boot">Open {player.first}'s card</p>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }
@@ -451,17 +1001,61 @@ function LeagueBoard({
   onOpenPlayer: (id: string) => void;
 }) {
   const q = query.trim().toLowerCase();
+  const now = useNow();
   const rows = useMemo(() => {
-    return managers.filter((m) => {
+    const listed = managers.filter((m) => {
       if (!q) return true;
       const picks = m.picks.map((id) => contestantById(id).first).join(" ");
       return `${m.name} ${picks}`.toLowerCase().includes(q);
     });
-  }, [q]);
+    const scored = listed.map((m) => ({
+      manager: m,
+      total: m.picks.reduce((sum, id) => sum + (pickPoints(contestantById(id), now) ?? 0), 0),
+      pending: m.picks.filter((id) => pickPoints(contestantById(id), now) == null).length,
+      picks: m.picks,
+    }));
+    const sorted = [...scored].sort(
+      (a, b) => compareStandings(a, b, now) || a.manager.name.localeCompare(b.manager.name),
+    );
+    let place = 1;
+    return sorted.map((row, index) => {
+      if (index > 0 && compareStandings(sorted[index - 1], row, now) !== 0) place = index + 1;
+      return { ...row, place };
+    });
+  }, [q, now]);
+  const leaders = rows.filter((row) => row.place === 1).length;
 
   return (
     <div>
       {!q && <BootCallout onOpenPlayer={onOpenPlayer} />}
+      {!q && rows.length > 0 && (
+        <section className="mb-4 rounded-2xl bg-surface p-4">
+          <p className="text-xs font-semibold tracking-widest text-toka">STANDINGS</p>
+          <h2 className="mt-1 font-display text-4xl leading-none">Lowest score leads</h2>
+          <p className="mt-1 text-sm text-muted">
+            {leaders === 1
+              ? "Lowest score leads. A tie goes to the better finish, then the next pick."
+              : `${leaders} people are tied. Their finishes match, so they share the place.`}
+          </p>
+          <ol className="mt-3 flex flex-col gap-1">
+            {rows.map((row) => (
+              <li key={row.manager.id}>
+                <button
+                  type="button"
+                  onClick={() => onOpenManager(row.manager.id)}
+                  className="flex w-full items-center justify-between gap-3 py-1 text-left"
+                >
+                  <span className="min-w-0">
+                    <span className="text-xs font-semibold tabular-nums text-muted">{ordinal(row.place)}</span>
+                    <span className={`ml-2 font-semibold ${row.manager.id === seat.id ? "text-ember" : ""}`}>{row.manager.name}</span>
+                  </span>
+                  <span className="font-display text-2xl leading-none tabular-nums">{row.total}</span>
+                </button>
+              </li>
+            ))}
+          </ol>
+        </section>
+      )}
       {!q && (
         <div className="mb-3 flex justify-end">
           <button
@@ -481,39 +1075,53 @@ function LeagueBoard({
       )}
       {rows.length === 0 && <p className="py-10 text-center text-sm text-muted">No seat matches that.</p>}
       <ul className="flex flex-col gap-2">
-        {rows.map((m) => (
+        {rows.map((row) => {
+        const m = row.manager;
+        const total = row.total;
+        const pending = row.pending;
+        return (
           <li
             key={m.id}
             id={`seat-${m.id}`}
-            className={`rounded-2xl bg-surface p-3 ${m.id === seat.id ? "ring-2 ring-ember" : ""}`}
+            className={`rounded-2xl bg-surface p-3 [content-visibility:auto] [contain-intrinsic-size:auto_320px] ${m.id === seat.id ? "ring-2 ring-ember" : ""}`}
           >
             <div className="flex items-center justify-between gap-3">
               <button
                 type="button"
                 onClick={() => onOpenManager(m.id)}
-                className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm font-semibold"
+                className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm font-semibold ring-1 ring-fg/15"
                 style={{ background: m.bg, color: m.fg }}
               >
                 {m.name}
                 <ChevronRight className="size-4" />
               </button>
-              {m.id === seat.id && <span className="text-xs font-semibold tracking-widest text-ember">YOU</span>}
+              <span className="text-right">
+                {m.id === seat.id && <span className="mb-1 block text-xs font-semibold tracking-widest text-ember">YOU</span>}
+                <span className="block text-xs font-semibold tabular-nums text-muted">{ordinal(row.place)}</span>
+                <span className="block font-display text-3xl leading-none tabular-nums">{total}</span>
+                <span className="block text-xs text-muted">{pending === 0 ? "Final" : `${pending} still in`}</span>
+              </span>
             </div>
             <div className="mt-3 grid grid-cols-3 gap-2">
               {m.picks.map((id, index) => {
                 const c = contestantById(id);
+                const points = pickPoints(c, now);
                 return (
                   <button key={`${m.id}-${id}-${index}`} type="button" onClick={() => onOpenPlayer(id)} className="text-left">
                     <Face id={id} alt="" />
-                    <span className="mt-1 block text-center text-xs text-muted">
+                    <span
+                      className={`mt-1 block text-center text-xs font-semibold ${points != null ? "text-boot" : "text-muted"}`}
+                    >
                       {index + 1} · {c.first}
+                      {points != null ? ` · ${points}` : ""}
                     </span>
                   </button>
                 );
               })}
             </div>
           </li>
-        ))}
+        );
+      })}
       </ul>
     </div>
   );
@@ -534,7 +1142,7 @@ function CardBoard({
   const now = useNow();
   const cards = contestants.filter((c) => {
     if (q && !contestantBlob(c).includes(q)) return false;
-    if (filter === "savu" || filter === "toka") return c.tribe === filter;
+    if (filter === "savu" || filter === "toka" || filter === "dina") return c.tribe === filter;
     if (filter === "in") return !isBootPublic(c, now);
     if (filter === "out") return isBootPublic(c, now);
     if (filter === "mine") return pickIndex(seat, c.id) >= 0;
@@ -607,26 +1215,30 @@ function Roster({
       <ul className="mt-4 flex flex-col gap-3">
         {manager.picks.map((id, index) => {
           const c = contestantById(id);
+          const points = pickPoints(c, now);
           const others = ownersOf(id).filter((m) => m.id !== manager.id);
           return (
             <li key={`${manager.id}-${id}-${index}`}>
               <button
                 type="button"
                 onClick={() => onOpenPlayer(id)}
-                className={`flex w-full gap-3 rounded-2xl p-3 text-left ${isBootPublic(c, now) ? "bg-boot/20" : "bg-surface"}`}
+                className={`flex w-full gap-3 rounded-2xl p-3 text-left ${points != null ? "bg-boot/20" : "bg-surface"}`}
               >
                 <div className="w-24 shrink-0">
                   <Face id={id} alt="" />
                 </div>
-                <div className="min-w-0 py-1">
+                <div className="min-w-0 flex-1 py-1">
                   <p className="text-xs font-semibold tracking-widest text-muted">PICK {index + 1}</p>
-                  <p className="font-display text-4xl leading-none">{c.first}</p>
+                  <p className={`font-display text-4xl leading-none ${points != null ? "text-boot" : ""}`}>{c.first}</p>
                   <p className="mt-1 text-sm text-fg">{c.job}</p>
                   <TribePill tribe={c.tribe} />
                   <p className="mt-2 text-sm text-muted">
                     {others.length === 0 ? "Only on this roster." : `Also with ${nameList(others.map((m) => m.name))}.`}
                   </p>
                 </div>
+                <p className={`font-display text-4xl leading-none tabular-nums ${points != null ? "text-boot" : "text-muted"}`}>
+                  {points ?? "—"}
+                </p>
               </button>
             </li>
           );
@@ -642,10 +1254,20 @@ function Roster({
               return (
                 <li key={id}>
                   <button type="button" onClick={() => onOpenManager(id)} className="flex w-full items-center justify-between gap-3 text-left">
-                    <span className="rounded-lg px-2 py-1 font-semibold" style={{ background: m.bg, color: m.fg }}>
+                    <span className="rounded-lg px-2 py-1 font-semibold ring-1 ring-fg/15" style={{ background: m.bg, color: m.fg }}>
                       {m.name}
                     </span>
-                    <span className="text-muted">{names.join(", ")}</span>
+                    <span className="text-right text-sm">
+                      {names.map((name, index) => {
+                        const player = contestantByName(name);
+                        const knockedOut = player ? isBootPublic(player, now) : false;
+                        return (
+                          <span key={name} className={knockedOut ? "font-semibold text-boot" : "text-muted"}>
+                            {index > 0 ? `, ${name}` : name}
+                          </span>
+                        );
+                      })}
+                    </span>
                   </button>
                 </li>
               );
@@ -712,7 +1334,7 @@ function Sheet({
           </button>
         </div>
         {panel.kind === "player" ? (
-          <PlayerBody id={panel.id} titleId={titleId} seat={seat} onOpenManager={onOpenManager} />
+          <PlayerBody id={panel.id} titleId={titleId} seat={seat} onOpenManager={onOpenManager} onOpenPlayer={onOpenPlayer} />
         ) : (
           <div>
             <ManagerBody id={panel.id} titleId={titleId} onOpenPlayer={onOpenPlayer} onOpenManager={onOpenManager} />
@@ -728,17 +1350,26 @@ function PlayerBody({
   titleId,
   seat,
   onOpenManager,
+  onOpenPlayer,
 }: {
   id: string;
   titleId: string;
   seat: Manager;
   onOpenManager: (id: string) => void;
+  onOpenPlayer: (id: string) => void;
 }) {
   const c = contestantById(id);
   const owners = ownersOf(id);
   const mine = pickIndex(seat, id);
   const now = useNow();
   const out = isBootPublic(c, now);
+  const idols = idolCount(c, now);
+  const wins = winCount(c, now);
+  const game = [
+    wins ? `${wins} ${wins === 1 ? "challenge win" : "challenge wins"}` : "",
+    idols ? `${idols} ${idols === 1 ? "idol" : "idols"}` : "",
+  ].filter(Boolean);
+  const votes = votingRecord(id, now);
 
   return (
     <div>
@@ -748,7 +1379,7 @@ function PlayerBody({
         </div>
         <div className="min-w-0">
           <TribePill tribe={c.tribe} />
-          <h2 id={titleId} className="mt-2 font-display text-5xl leading-none">
+          <h2 id={titleId} className={`mt-2 font-display text-5xl leading-none ${out ? "text-boot" : ""}`}>
             {c.first}
           </h2>
           <p className="mt-1 text-sm text-muted">{displayName(c)}</p>
@@ -757,11 +1388,60 @@ function PlayerBody({
             {c.age} · {c.hometown}
           </p>
           {mine >= 0 && <p className="mt-2 text-sm font-semibold text-ember">Your pick {mine + 1}</p>}
+          {game.length > 0 && <p className="mt-2 text-sm font-semibold text-toka">{game.join(" · ")}</p>}
         </div>
       </div>
       {out && (
-        <p className="mt-4 rounded-xl bg-boot/15 px-3 py-2 text-sm text-boot">{c.boot ?? `${c.first} is out.`}</p>
+        <p className="mt-4 rounded-xl bg-boot/15 px-3 py-2 text-sm text-boot">
+          {c.boot ?? `${c.first} is out.`}
+          {pickPoints(c, now) != null ? ` · ${pickPoints(c, now)} points` : ""}
+        </p>
       )}
+      <h3 className="mt-5 text-xs font-semibold tracking-widest text-muted">VOTES</h3>
+      {votes.length === 0 && <p className="mt-2 text-sm text-muted">No public vote yet. A tribal stays hidden until the episode ends at 9:30.</p>}
+      <ul className="mt-2 flex flex-col gap-2">
+        {votes.map((row) => {
+          const target = row.mine?.for ? contestantById(row.mine.for) : null;
+          const note =
+            row.mine?.note === "shot"
+              ? "Shot in the Dark. Not safe, so no vote."
+              : row.mine?.note === "exile"
+                ? "Exiled. Did not vote."
+                : null;
+          return (
+            <li key={`${row.tribal.day}-${row.tribal.tribe}`} className="rounded-xl bg-surface-2 px-3 py-3 text-sm">
+              <p className="text-xs font-semibold tracking-widest text-muted">
+                DAY {row.tribal.day} · {row.tribal.tribe.toUpperCase()} · {row.tribal.tally}
+              </p>
+              {note && <p className="mt-1">{note}</p>}
+              {target && (
+                <p className="mt-1">
+                  Voted{" "}
+                  <button type="button" onClick={() => onOpenPlayer(target.id)} className="font-semibold text-toka">
+                    {target.first}
+                  </button>
+                </p>
+              )}
+              {row.against.length > 0 && (
+                <p className="mt-1 text-boot">
+                  {row.against.length} {row.against.length === 1 ? "vote" : "votes"} from{" "}
+                  {row.against.map((voterId, index) => {
+                    const voter = contestantById(voterId);
+                    return (
+                      <span key={voterId}>
+                        {index > 0 ? ", " : ""}
+                        <button type="button" onClick={() => onOpenPlayer(voterId)} className="font-semibold">
+                          {voter.first}
+                        </button>
+                      </span>
+                    );
+                  })}
+                </p>
+              )}
+            </li>
+          );
+        })}
+      </ul>
       <h3 className="mt-5 text-xs font-semibold tracking-widest text-muted">
         {owners.length === 0 ? "UNDRAFTED" : `DRAFTED BY ${owners.length}`}
       </h3>
@@ -774,7 +1454,7 @@ function PlayerBody({
           return (
             <li key={m.id}>
               <button type="button" onClick={() => onOpenManager(m.id)} className="flex w-full items-center justify-between gap-3 text-left">
-                <span className="rounded-lg px-3 py-1.5 text-sm font-semibold" style={{ background: m.bg, color: m.fg }}>
+                <span className="rounded-lg px-3 py-1.5 text-sm font-semibold ring-1 ring-fg/15" style={{ background: m.bg, color: m.fg }}>
                   {m.name}
                 </span>
                 <span className="text-sm text-muted">Pick {n + 1}</span>
@@ -812,7 +1492,9 @@ function ManagerBody({
 
 function Face({ id, alt }: { id: string; alt: string }) {
   const now = useNow();
-  const out = isBootPublic(contestantById(id), now);
+  const c = contestantById(id);
+  const out = isBootPublic(c, now);
+  const idols = idolCount(c, now);
   return (
     <span className="relative block">
       <img
@@ -825,26 +1507,78 @@ function Face({ id, alt }: { id: string; alt: string }) {
         decoding="async"
         className="block h-auto w-full bg-surface-2"
       />
-      {out && (
-        <span className="pointer-events-none absolute inset-0 bg-boot/70" aria-hidden>
-          <span className="absolute inset-x-0 bottom-1.5 text-center font-display text-2xl leading-none tracking-widest text-boot-ink">
-            OUT
-          </span>
+      {idols > 0 && (
+        <span className={`pointer-events-none absolute left-1.5 inline-flex items-center gap-0.5 rounded-full bg-toka px-1.5 py-0.5 text-[10px] font-semibold text-toka-ink ${out ? "bottom-7" : "bottom-1.5"}`}>
+          <Gem className="size-3" aria-hidden />
+          {idols > 1 ? idols : "Idol"}
         </span>
+      )}
+      {out && (
+        <>
+          <span className="pointer-events-none absolute inset-0 bg-boot/55" aria-hidden />
+          <span className="pointer-events-none absolute inset-x-0 bottom-0 bg-bg/90 px-1 py-1 text-center text-xs font-semibold leading-tight text-boot" aria-hidden>
+            {c.first}
+          </span>
+        </>
       )}
     </span>
   );
 }
 
-function TribePill({ tribe }: { tribe: Contestant["tribe"] }) {
-  const savu = tribe === "savu";
+function GameStats({ onOpenPlayer }: { onOpenPlayer: (id: string) => void }) {
+  const now = useNow();
+  const rows = contestants
+    .map((c) => ({ c, idols: idolCount(c, now), wins: winCount(c, now) }))
+    .filter((row) => row.idols > 0 || row.wins > 0)
+    .sort((a, b) => b.wins - a.wins || b.idols - a.idols || a.c.first.localeCompare(b.c.first));
+  const challenges = rows.reduce((sum, row) => sum + row.wins, 0);
+  const idols = rows.reduce((sum, row) => sum + row.idols, 0);
+
   return (
-    <span
-      className={`mt-2 inline-flex rounded-full px-2 py-0.5 text-xs font-semibold tracking-widest ${
-        savu ? "bg-savu text-savu-ink" : "bg-toka text-toka-ink"
-      }`}
-    >
-      {savu ? "SAVU" : "TOKA"}
+    <section>
+      <p className="text-xs font-semibold tracking-widest text-toka">THIS SEASON</p>
+      <h1 className="mt-1 font-display text-5xl leading-none">The game</h1>
+      <p className="mt-2 text-sm text-muted">
+        {challenges} challenge {challenges === 1 ? "win" : "wins"} and {idols} {idols === 1 ? "idol" : "idols"} so far. Counts stay hidden until the episode ends at 9:30.
+      </p>
+      <ul className="mt-4 flex flex-col gap-2">
+        {rows.map((row) => (
+          <li key={row.c.id}>
+            <button
+              type="button"
+              onClick={() => onOpenPlayer(row.c.id)}
+              className="flex w-full items-center gap-3 rounded-2xl bg-surface p-3 text-left"
+            >
+              <span className="w-12 shrink-0">
+                <Face id={row.c.id} alt="" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className={`block font-semibold ${isBootPublic(row.c, now) ? "text-boot" : ""}`}>{row.c.first}</span>
+                <span className="block text-sm text-muted">
+                  {row.wins ? `${row.wins} ${row.wins === 1 ? "win" : "wins"}` : "No wins yet"}
+                  {row.idols ? ` · ${row.idols} ${row.idols === 1 ? "idol" : "idols"}` : ""}
+                </span>
+              </span>
+              {row.idols > 0 && <Gem className="size-5 shrink-0 text-toka" aria-label={`${row.idols} idol`} />}
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function TribePill({ tribe }: { tribe: Contestant["tribe"] }) {
+  const label = tribe.toUpperCase();
+  const tone =
+    tribe === "savu"
+      ? "bg-savu text-savu-ink"
+      : tribe === "dina"
+        ? "bg-dina text-dina-ink"
+        : "bg-toka text-toka-ink";
+  return (
+    <span className={`mt-2 inline-flex rounded-full px-2 py-0.5 text-xs font-semibold tracking-widest ${tone}`}>
+      {label}
     </span>
   );
 }
@@ -876,6 +1610,7 @@ function chipClass(id: CastFilter, on: boolean): string {
   if (!on) return "bg-surface-2 text-fg";
   if (id === "savu") return "bg-savu text-savu-ink";
   if (id === "toka") return "bg-toka text-toka-ink";
+  if (id === "dina") return "bg-dina text-dina-ink";
   if (id === "out" || id === "mine") return "bg-ember text-ember-ink";
   return "bg-fg text-bg";
 }

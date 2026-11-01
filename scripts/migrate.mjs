@@ -28,6 +28,62 @@ if (!databaseUrl) {
 
 const migrationsDir = join(dirname(fileURLToPath(import.meta.url)), "..", "migrations");
 
+/** Neon URLs often include channel_binding, which node-postgres rejects. */
+function connectionString(raw) {
+  try {
+    const url = new URL(raw);
+    url.searchParams.delete("channel_binding");
+    return url.toString();
+  } catch {
+    return raw.replace(/([?&])channel_binding=[^&]*/g, "$1").replace(/[?&]$/, "");
+  }
+}
+
+function poolConfig(raw) {
+  const connection = connectionString(raw);
+  let remote = true;
+  try {
+    const host = new URL(connection).hostname;
+    remote = host !== "localhost" && host !== "127.0.0.1" && host !== "::1";
+  } catch {
+    remote = true;
+  }
+  return {
+    connectionString: connection,
+    max: 1,
+    connectionTimeoutMillis: 10000,
+    ssl: remote ? { rejectUnauthorized: false } : undefined,
+  };
+}
+
+function retryable(err) {
+  const code = err?.code;
+  if (["ECONNREFUSED", "ENOTFOUND", "ETIMEDOUT", "EAI_AGAIN", "ECONNRESET", "57P01", "53300"].includes(code)) {
+    return true;
+  }
+  return /timeout|ECONNRESET|the database system is starting|channel_binding|self-signed|certificate/i.test(
+    String(err?.message || ""),
+  );
+}
+
+async function connect() {
+  let last;
+  for (let attempt = 1; attempt <= 6; attempt += 1) {
+    const pool = new pg.Pool(poolConfig(databaseUrl));
+    try {
+      const client = await pool.connect();
+      return { pool, client };
+    } catch (err) {
+      last = err;
+      await pool.end().catch(() => undefined);
+      if (!retryable(err) || attempt === 6) throw err;
+      console.error(`[migrate] database not ready, retry ${attempt}/6`);
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+    }
+  }
+  throw last;
+}
+
 async function main() {
   let entries;
   try {
@@ -36,14 +92,12 @@ async function main() {
     console.log("[migrate] no migrations/ directory — nothing to do.");
     return;
   }
-  // An app with no schema of its own must not pay for a database connection.
   if (pendingMigrations(entries, []).length === 0) {
     console.log("[migrate] no migrations — nothing to do.");
     return;
   }
 
-  const pool = new pg.Pool({ connectionString: databaseUrl, max: 1 });
-  const client = await pool.connect();
+  const { pool, client } = await connect();
   try {
     await client.query(
       "CREATE TABLE IF NOT EXISTS _migrations (name TEXT PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT now())",
@@ -82,9 +136,14 @@ async function main() {
 
 main().catch((err) => {
   console.error("[migrate] failed:", err?.message || err);
-  // pg errors carry the context needed to debug a bad SQL file.
   for (const key of ["code", "detail", "hint", "position", "where"]) {
     if (err?.[key] != null) console.error(`[migrate]   ${key}: ${err[key]}`);
+  }
+  // A database that is not reachable yet must not fail the site build.
+  // The server applies the same files on the first query.
+  if (retryable(err)) {
+    console.error("[migrate] continuing without a connection; schema will apply on first use.");
+    process.exit(0);
   }
   process.exit(1);
 });

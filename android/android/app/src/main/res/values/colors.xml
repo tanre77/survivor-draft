@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Dark palette from src/styles.css. Do not drift these hexes. -->
+<resources>
+    <color name="bg">#100E0C</color>
+    <color name="surface">#1B1714</color>
+    <color name="fg">#F4EFE6</color>
+    <color name="muted">#A89886</color>
+    <color name="savu">#6E4AA8</color>
+    <color name="toka">#E2B340</color>
+    <color name="ember">#E25B2A</color>
+    <color name="boot">#E10600</color>
+</resources>
