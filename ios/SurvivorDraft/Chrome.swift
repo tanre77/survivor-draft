@@ -67,7 +67,7 @@ struct CapsuleSegment: View {
                     fill: on ? palette.toka : Color.clear,
                     ink: on ? palette.tokaLabelInk(scheme: colorScheme) : palette.muted
                 ))
-                .accessibilityAddTraits(on ? .isSelected : [])
+                .accessibilityAddTraits(on ? AccessibilityTraits.isSelected : AccessibilityTraits())
             }
         }
         .padding(4)
