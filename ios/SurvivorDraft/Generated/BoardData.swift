@@ -33,7 +33,7 @@ enum BoardData {
         Contestant(id: "aaliyah", first: "Aaliyah", last: "Puglia", age: 24, hometown: "Providence, RI", job: "Chef", tribe: "toka", status: "out", boot: "1st voted out · Day 3", revealAt: nil),
         Contestant(id: "alexis", first: "Alexis", last: "Levine", age: 34, hometown: "Atlanta, GA", job: "Criminal defense attorney", tribe: "savu", status: "out", boot: "5th voted out · Day 10", revealAt: "2026-10-22T06:00:00.000Z"),
         Contestant(id: "ana", first: "Ana", last: "Sani", age: 34, hometown: "Toronto, ON", job: "Voice actress", tribe: "savu", status: "out", boot: "2nd voted out · Day 5", revealAt: "2026-10-01T06:00:00.000Z"),
-        Contestant(id: "brady", first: "Brady", last: "Booker", age: 27, hometown: "Knoxville, TN", job: "Pro wrestler", tribe: "toka", status: "active", boot: nil, revealAt: nil),
+        Contestant(id: "brady", first: "Brady", last: "Booker", age: 27, hometown: "Knoxville, TN", job: "Pro wrestler", tribe: "toka", status: "out", boot: "8th voted out · Day 14", revealAt: "2026-11-05T02:30:00.000Z"),
         Contestant(id: "carter", first: "Carter", last: "Krull", age: 24, hometown: "Sioux Falls, SD", job: "Livestock farmer", tribe: "toka", status: "active", boot: nil, revealAt: nil),
         Contestant(id: "cristian", first: "Cristian", last: "Chavez", age: 25, hometown: "Salt Lake City, UT", job: "Head of HR", tribe: "dina", status: "active", boot: nil, revealAt: nil),
         Contestant(id: "devin", first: "Devin", last: "Way", age: 33, hometown: "Los Angeles, CA", job: "Actor", tribe: "savu", status: "active", boot: nil, revealAt: nil),
