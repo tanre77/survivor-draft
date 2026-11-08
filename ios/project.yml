@@ -13,6 +13,7 @@ settings:
     CURRENT_PROJECT_VERSION: "1"
     # Signing stays enabled so an archive can be uploaded. Simulator CI passes
     # CODE_SIGNING_ALLOWED=NO. The team id is APPLE_TEAM_ID at release time.
+    # Do not invent a team id here.
     CODE_SIGN_STYLE: Automatic
 targets:
   SurvivorDraft:
@@ -24,6 +25,7 @@ targets:
       base:
         TARGETED_DEVICE_FAMILY: "1,2"
         INFOPLIST_FILE: SurvivorDraft/Info.plist
+        CODE_SIGN_STYLE: Automatic
   SurvivorDraftTests:
     type: bundle.unit-test
     platform: iOS
@@ -34,3 +36,4 @@ targets:
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES
+        CODE_SIGN_STYLE: Automatic

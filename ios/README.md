@@ -2,6 +2,8 @@
 
 Native iOS app. Same board as the website, generated from `shared/board.json` into `SurvivorDraft/Generated/BoardData.swift`.
 
+The leagues screen splits Survivor 51 into In progress and Finished. It stays in progress while anyone is still active. You switches System, Dark, and Light. Colors are generated from `src/styles.css` (`npm run board` writes `Palette.swift`). A Wednesday boot stays off the board until 9:30pm Eastern, and the boot callout is the latest night. The phone does not email the next draft seat. That mail runs on the server, and this app does not call it.
+
 ```sh
 brew install xcodegen
 npm run board
@@ -13,7 +15,7 @@ xcodebuild -project SurvivorDraft.xcodeproj -scheme SurvivorDraft \
   build test
 ```
 
-`xcodegen` reads `project.yml`. Bundle id `com.tanre77.survivordraft`, iOS 17, version 1.0 (build 1). Signing is left on so an archive can be uploaded; the simulator command above turns it off. The team id is not in the project. [RELEASE.md](../RELEASE.md) lists the Apple secrets, `ios/ExportOptions.plist`, and the TestFlight workflow.
+`xcodegen` reads `project.yml`. Bundle id `com.tanre77.survivordraft`, iOS 17, version 1.0 (build 1). Signing stays on in the project so an archive can be uploaded. The simulator command above turns it off, and CI does the same. The team id is not in the project. [RELEASE.md](../RELEASE.md) lists the Apple secrets, `ios/ExportOptions.plist`, and the TestFlight workflow.
 
 `GoogleService-Info.plist` is intentionally absent. Add the real file from your Firebase project, then uncomment the two lines in `CrashReporting.swift` and add the FirebaseCrashlytics Swift package. A placeholder plist would point Crashlytics at the wrong project.
 

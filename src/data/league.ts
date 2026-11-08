@@ -11,7 +11,7 @@ export type Contestant = {
   tribe: Tribe;
   status: Status;
   boot?: string;
-  /** ISO time. A boot stays off the board until this instant so Pacific airtime is not spoiled. */
+  /** ISO time. A boot stays off the board until this instant. Wednesday's show is public at 9:30pm Eastern. */
   revealAt?: string;
   aliases?: string[];
 };
@@ -299,7 +299,7 @@ export function photoSrc(id: string): string {
   return `/cast/${id}.jpg`;
 }
 
-/** Idols found, advantages, successful plays, challenge wins, and final-tribal votes. A reveal time stays hidden until 11:00 PM Pacific. */
+/** Idols found, advantages, successful plays, challenge wins, and final-tribal votes. A reveal time stays hidden until the episode is public, 9:30pm Eastern on Wednesdays. */
 export const bonuses: Record<
   string,
   {
@@ -489,7 +489,7 @@ export type Tribal = {
   votes: TribalVote[];
 };
 
-/** Hidden until 11:00 PM Pacific, same as the boot they decide. */
+/** Hidden until the boot is public. Wednesday's show waits until 9:30pm Eastern. */
 export const tribals: Tribal[] = [
   {
     day: 3,

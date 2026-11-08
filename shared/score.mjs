@@ -77,3 +77,22 @@ export function teamScore(picks, contestants, bonuses, now, bonusOn) {
   }
   return { total, pending };
 }
+
+export function bootDay(boot) {
+  const match = String(boot ?? "").match(/day\s+(\d+)/i);
+  return match ? Number(match[1]) : 0;
+}
+
+function votedOutOrder(boot) {
+  const match = String(boot ?? "").match(/(\d+)(?:st|nd|rd|th)\s+voted out/i);
+  return match ? Number(match[1]) : 0;
+}
+
+/** People who left on the latest public night. A quit's finish place does not outrank a later vote. */
+export function latestPublicBoots(contestants, now) {
+  const gone = contestants.filter((contestant) => isBootPublic(contestant, now) && bootDay(contestant.boot) > 0);
+  const day = Math.max(0, ...gone.map((contestant) => bootDay(contestant.boot)));
+  return gone
+    .filter((contestant) => bootDay(contestant.boot) === day)
+    .sort((a, b) => votedOutOrder(a.boot) - votedOutOrder(b.boot));
+}

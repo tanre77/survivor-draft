@@ -68,6 +68,61 @@ enum Scoring {
         return max(0, points(forPlace: finish, castSize: castSize, advanced: advanced))
     }
 
+    private static func capture(_ pattern: String, in text: String) -> String? {
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else { return nil }
+        let range = NSRange(text.startIndex..., in: text)
+        guard let match = regex.firstMatch(in: text, range: range),
+              match.numberOfRanges > 1,
+              let hit = Range(match.range(at: 1), in: text) else { return nil }
+        return String(text[hit])
+    }
+
+    private static func bootDay(_ boot: String?) -> Int {
+        guard let boot, let digits = capture(#"day\s+(\d+)"#, in: boot) else { return 0 }
+        return Int(digits) ?? 0
+    }
+
+    private static func votedOutOrder(_ boot: String?) -> Int {
+        guard let boot, let digits = capture(#"(\d+)(?:st|nd|rd|th)\s+voted out"#, in: boot) else { return 0 }
+        return Int(digits) ?? 0
+    }
+
+    static func ordinal(_ place: Int) -> String {
+        let mod = place % 100
+        if (11...13).contains(mod) { return "\(place)th" }
+        switch place % 10 {
+        case 1: return "\(place)st"
+        case 2: return "\(place)nd"
+        case 3: return "\(place)rd"
+        default: return "\(place)th"
+        }
+    }
+
+    static func nameList(_ names: [String]) -> String {
+        switch names.count {
+        case 0: return ""
+        case 1: return names[0]
+        case 2: return "\(names[0]) and \(names[1])"
+        default:
+            let head = names.dropLast().joined(separator: ", ")
+            return "\(head) and \(names[names.count - 1])"
+        }
+    }
+
+    /// Survivor 51 stays in progress while anyone is still listed as active.
+    static var seasonStillOpen: Bool {
+        BoardData.contestants.contains { $0.status != "out" }
+    }
+
+    /// Mirrors `latestPublicBoots` in shared/score.mjs. The latest night wins, not the highest finish place.
+    static func latestBoots(now: Date = Date()) -> [Contestant] {
+        let gone = BoardData.contestants.filter { isBootPublic($0, now: now) && bootDay($0.boot) > 0 }
+        let day = gone.map { bootDay($0.boot) }.max() ?? 0
+        return gone
+            .filter { bootDay($0.boot) == day }
+            .sorted { votedOutOrder($0.boot) < votedOutOrder($1.boot) }
+    }
+
     /// A hidden boot scores nothing yet. Bonus points subtract only when the league opted in.
     static func score(_ contestant: Contestant, bonusOn: Bool, now: Date = Date()) -> Int? {
         guard isBootPublic(contestant, now: now),

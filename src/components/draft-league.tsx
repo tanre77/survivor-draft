@@ -1398,7 +1398,7 @@ function PlayerBody({
         </p>
       )}
       <h3 className="mt-5 text-xs font-semibold tracking-widest text-muted">VOTES</h3>
-      {votes.length === 0 && <p className="mt-2 text-sm text-muted">No public vote yet. A tribal stays hidden until the episode ends at 9:30.</p>}
+      {votes.length === 0 && <p className="mt-2 text-sm text-muted">No public vote yet. A tribal stays hidden until 9:30pm Eastern.</p>}
       <ul className="mt-2 flex flex-col gap-2">
         {votes.map((row) => {
           const target = row.mine?.for ? contestantById(row.mine.for) : null;
@@ -1539,7 +1539,7 @@ function GameStats({ onOpenPlayer }: { onOpenPlayer: (id: string) => void }) {
       <p className="text-xs font-semibold tracking-widest text-toka">THIS SEASON</p>
       <h1 className="mt-1 font-display text-5xl leading-none">The game</h1>
       <p className="mt-2 text-sm text-muted">
-        {challenges} challenge {challenges === 1 ? "win" : "wins"} and {idols} {idols === 1 ? "idol" : "idols"} so far. Counts stay hidden until the episode ends at 9:30.
+        {challenges} challenge {challenges === 1 ? "win" : "wins"} and {idols} {idols === 1 ? "idol" : "idols"} so far. Counts stay hidden until 9:30pm Eastern.
       </p>
       <ul className="mt-4 flex flex-col gap-2">
         {rows.map((row) => (

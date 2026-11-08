@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
-import { finishPoints, idolCount, isBootPublic, scoreOf, teamScore, winCount } from "./score.mjs";
+import { finishPoints, idolCount, isBootPublic, latestPublicBoots, scoreOf, teamScore, winCount } from "./score.mjs";
 
 const board = JSON.parse(readFileSync(new URL("./board.json", import.meta.url), "utf8"));
 const byId = new Map(board.contestants.map((c) => [c.id, c]));
@@ -54,6 +54,22 @@ test("a team with an unrevealed boot does not count that pick yet", () => {
   assert.deepEqual(early, { total: 0, pending: 3 });
   const late = teamScore(["aaliyah"], board.contestants, board.bonuses, before, false);
   assert.deepEqual(late, { total: board.contestants.length, pending: 0 });
+});
+
+test("the callout is the latest night, not the highest finish", () => {
+  const day10 = Date.parse("2026-10-22T06:00:01.000Z");
+  assert.deepEqual(
+    latestPublicBoots(board.contestants, day10).map((contestant) => contestant.id),
+    ["alexis", "linnea"],
+  );
+  const beforeOri = Date.parse("2026-10-29T01:29:59.000Z");
+  assert.equal(isBootPublic(byId.get("ori"), beforeOri), false);
+  const afterOri = Date.parse("2026-10-29T01:30:00.000Z");
+  assert.deepEqual(
+    latestPublicBoots(board.contestants, afterOri).map((contestant) => contestant.id),
+    ["ori"],
+  );
+  assert.equal(scoreOf(byId.get("ori"), board.bonuses, afterOri, false, board.contestants.length), 15);
 });
 
 test("board has the full draft", () => {
