@@ -1,28 +1,65 @@
 import { useState } from "react";
-import { managers } from "@/data/league";
+import { PRE_JURY_BOOTS, contestants, managers, pointsForPlace } from "@/data/league";
 import { pastSeasons, rosterFor, standingFor, type PastSeason, type Standing } from "@/data/history";
 
-const PREMERGE = [
-  ["1st boot", "1"],
-  ["2nd", "2"],
-  ["3rd", "3"],
-  ["4th", "4"],
-  ["5th", "5"],
-  ["6th", "6"],
+const CAST = contestants.length;
+const STANDARD_EARLY = [
+  ["1st boot", String(CAST)],
+  ["2nd", String(CAST - 1)],
+  ["3rd", String(CAST - 2)],
+  ["4th", String(CAST - 3)],
+  ["5th", String(CAST - 4)],
+  ["6th", String(CAST - 5)],
+];
+const STANDARD_LATE = [
+  ["4th place", "4"],
+  ["3rd place", "3"],
+  ["Both finalists", "2"],
+  ["Sole survivor", "1"],
 ];
 
-const JURY = [
-  ["7th", "7"],
-  ["8th", "8"],
-  ["9th", "9"],
-  ["10th", "10"],
-  ["11th", "12"],
-  ["12th", "14"],
-  ["13th", "16"],
-  ["14th", "18"],
-  ["15th", "20"],
-  ["16th · winner", "22"],
+function bootPoints(boot: number, advanced: boolean): string {
+  const place = CAST - boot + 1;
+  return String(pointsForPlace(place, CAST, advanced));
+}
+
+const ADVANCED_PRE = Array.from({ length: PRE_JURY_BOOTS }, (_, index) => {
+  const boot = index + 1;
+  return [`${boot === 1 ? "1st" : boot === 2 ? "2nd" : boot === 3 ? "3rd" : `${boot}th`} boot`, bootPoints(boot, true)];
+});
+const ADVANCED_JURY = [
+  ["7th boot", bootPoints(7, true)],
+  ["8th", bootPoints(8, true)],
+  ["3rd place", "3"],
+  ["Runner-up", "2"],
+  ["Sole survivor", "1"],
 ];
+
+export function FinishedSeasons({ onOpen }: { onOpen: (id: string) => void }) {
+  return (
+    <div>
+      <p className="text-xs font-semibold tracking-widest text-muted">ON THE SHEET</p>
+      <h1 className="mt-1 font-display text-5xl leading-none">Past seasons</h1>
+      <ul className="mt-4 flex flex-col gap-2">
+        {pastSeasons.map((season) => {
+          const winner = season.standings[0];
+          return (
+            <li key={season.id}>
+              <button type="button" onClick={() => onOpen(season.id)} className="w-full rounded-2xl bg-surface px-4 py-3 text-left">
+                <span className="block text-xs font-semibold tracking-widest text-muted">FINISHED</span>
+                <span className="block font-display text-3xl leading-none">Season {season.season}</span>
+                <span className="mt-1 block text-sm text-muted">
+                  {winner.name} won · {winner.total}
+                  {winner.prize ? ` · ${winner.prize}` : ""}
+                </span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
 
 export function RulesBoard() {
   return (
@@ -31,20 +68,28 @@ export function RulesBoard() {
         <p className="text-xs font-semibold tracking-widest text-muted">FROM THE SHEET</p>
         <h2 className="mt-1 font-display text-5xl leading-none">Lowest score wins</h2>
         <p className="mt-2 max-w-prose text-sm text-muted">
-          $10 buy-in, settled between the table outside this app. The app does not take payment. A tie splits the pot. You only score a boot if you were a member of it.
+          Survivor 51 is $25 a person, settled outside this app. The app does not take payment. The pot is $575. First pays $310, second $160, third $80, and last place gets $25 back.
         </p>
       </div>
 
       <section className="rounded-2xl bg-surface p-4">
-        <h3 className="font-display text-3xl leading-none">Pre-merge</h3>
-        <p className="mt-1 text-sm text-muted">Boots before the merge, in order.</p>
-        <ScoreGrid rows={PREMERGE} />
+        <h3 className="font-display text-3xl leading-none">Standard</h3>
+        <p className="mt-1 text-sm text-muted">
+          Your score is the finish place. 20th place is 20. The winner is 1. Lowest total wins. A tie goes to the better finish, then the next pick. Both losing finalists score 2, not 2 and 3. Each person drafts 3 names. A contestant can be taken 4 times, and no two teams can match.
+        </p>
+        <ScoreGrid rows={STANDARD_EARLY} emphasizeFirst />
+        <ScoreGrid rows={STANDARD_LATE} emphasizeLast />
       </section>
 
       <section className="rounded-2xl bg-surface p-4">
-        <h3 className="font-display text-3xl leading-none">Jury</h3>
-        <p className="mt-1 text-sm text-muted">Scored off an 18-person merge. The winner is worth 22.</p>
-        <ScoreGrid rows={JURY} emphasizeLast />
+        <h3 className="font-display text-3xl leading-none">Advanced</h3>
+        <p className="mt-1 text-sm text-muted">
+          The first {PRE_JURY_BOOTS} boots are pre-jury and cost 2 points apart. From the 7th boot on, that is the jury, and each finish is 1 point apart. The winner is still 1. These also come off the score: finding an idol or an advantage is −2, playing it and staying is −5, an immunity win is −1, and each final tribal vote is −1. Standard scoring ignores all of that.
+        </p>
+        <p className="mt-3 text-xs font-semibold tracking-widest text-muted">PRE-JURY</p>
+        <ScoreGrid rows={ADVANCED_PRE} emphasizeFirst />
+        <p className="mt-3 text-xs font-semibold tracking-widest text-muted">JURY</p>
+        <ScoreGrid rows={ADVANCED_JURY} emphasizeLast />
       </section>
 
       <section className="rounded-2xl bg-surface p-4">
@@ -52,11 +97,11 @@ export function RulesBoard() {
         <ul className="mt-3 flex flex-col gap-3 text-sm">
           <li>
             <p className="font-semibold">Idols and advantages</p>
-            <p className="text-muted">Zero on the sheet, unless played at final-four fire or final tribal.</p>
+            <p className="text-muted">Zero in standard scoring. In advanced, finding one is −2. Playing it so you stay is −5.</p>
           </li>
           <li>
             <p className="font-semibold">Quits and medevacs</p>
-            <p className="text-muted">Zero. A quit or medevac during tribal does not score either.</p>
+            <p className="text-muted">They score their finish place. A quit in 19th is 19. One with no place is 0.</p>
           </li>
           <li>
             <p className="font-semibold">Edge of Extinction</p>
@@ -64,7 +109,7 @@ export function RulesBoard() {
           </li>
           <li>
             <p className="font-semibold">Final tribal votes</p>
-            <p className="text-muted">The votes themselves are worth nothing.</p>
+            <p className="text-muted">Zero in standard scoring. In advanced, each vote is −1.</p>
           </li>
         </ul>
       </section>
@@ -72,24 +117,31 @@ export function RulesBoard() {
       <section className="rounded-2xl border border-line p-4">
         <p className="text-xs font-semibold tracking-widest text-toka">WORKED EXAMPLE</p>
         <p className="mt-2 text-sm">
-          A first boot is worth 1. The winner is worth 22. Early boots keep a roster low, which is why the lowest total wins.
+          Standard: a first boot is worth {CAST}. Advanced: a first boot is worth {bootPoints(1, true)} because those six are pre-jury. Either way the winner is 1, and the lowest total wins.
+        </p>
+      </section>
+
+      <section className="rounded-2xl border border-line p-4">
+        <h3 className="font-display text-3xl leading-none">Disclaimer</h3>
+        <p className="mt-2 text-sm text-muted">
+          This is a private scoreboard for a game between friends. It is not Survivor, CBS, or a gambling service, and it does not take payment. Scores, spoilers, and the chat can be wrong or late. The people who run this league are not liable for the buy-in, the prizes, a bad score, a missed pick, or anything said in the chat. You play at your own risk.
         </p>
       </section>
     </div>
   );
 }
 
-function ScoreGrid({ rows, emphasizeLast }: { rows: string[][]; emphasizeLast?: boolean }) {
+function ScoreGrid({ rows, emphasizeLast, emphasizeFirst }: { rows: string[][]; emphasizeLast?: boolean; emphasizeFirst?: boolean }) {
   return (
     <ul className="mt-3 grid grid-cols-2 gap-2">
       {rows.map(([place, pts], index) => {
-        const last = emphasizeLast && index === rows.length - 1;
+        const mark = (emphasizeLast && index === rows.length - 1) || (emphasizeFirst && index === 0);
         return (
           <li
             key={place}
-            className={`flex items-center justify-between rounded-xl px-3 py-2 ${last ? "bg-toka text-toka-ink" : "bg-surface-2"}`}
+            className={`flex items-center justify-between rounded-xl px-3 py-2 ${mark ? "bg-toka text-toka-ink" : "bg-surface-2"}`}
           >
-            <span className={`text-sm ${last ? "font-semibold" : "text-muted"}`}>{place}</span>
+            <span className={`text-sm ${mark ? "font-semibold" : "text-muted"}`}>{place}</span>
             <span className="font-display text-2xl leading-none tabular-nums">{pts}</span>
           </li>
         );
@@ -274,7 +326,7 @@ function NameChip({ name }: { name: string }) {
   }
   return (
     <span
-      className="inline-flex shrink-0 items-center rounded-lg px-2 py-1 text-sm font-semibold"
+      className="inline-flex shrink-0 items-center rounded-lg px-2 py-1 text-sm font-semibold ring-1 ring-fg/15"
       style={{ background: known.bg, color: known.fg }}
     >
       {name}

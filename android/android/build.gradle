@@ -1,0 +1,4 @@
+plugins {
+    // 8.9.1 is the minimum that compiles SDK 36, and it still runs on Gradle 8.11.
+    id "com.android.application" version "8.9.1" apply false
+}

@@ -1,0 +1,4 @@
+Survivor Fantasy Draft is a private family scoreboard. Draft the cast, follow the season, and the lowest score wins. There are no in-app payments. The buy-in is settled outside the app.
+
+Privacy policy: /privacy.html on the published website (public/privacy.html in the repo).
+Support: /support.html on the published website (public/support.html in the repo).
