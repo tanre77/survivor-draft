@@ -17,6 +17,15 @@ test("Ori is the card after episode 6 ends", () => {
   assert.equal(pickPoints(latest[0], now), 15);
 });
 
+test("Brady stays hidden until 9:30pm Eastern on November 4", () => {
+  const before = Date.parse("2026-11-05T02:29:59.000Z");
+  assert.deepEqual(latestBoots(undefined, before).map((player) => player.id), ["ori"]);
+  const after = Date.parse("2026-11-05T02:30:00.000Z");
+  const latest = latestBoots(undefined, after);
+  assert.deepEqual(latest.map((player) => player.id), ["brady"]);
+  assert.equal(pickPoints(latest[0], after), 14);
+});
+
 test("a boot stays off the card until its reveal", () => {
   const before = Date.parse("2026-10-22T05:59:00.000Z");
   const latest = latestBoots(undefined, before);

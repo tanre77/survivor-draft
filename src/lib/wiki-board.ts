@@ -74,7 +74,10 @@ function sliceAfter(wikitext: string, name: string): string {
 }
 
 function bootFrom(slice: string): string | null {
-  const voted = slice.match(/(\d+)(?:st|nd|rd|th)\s+Voted Out(?:\s|<br\s*\/?>)+Day\s+(\d+)/i);
+  // The wiki inserts "1st Jury Member" between "Voted Out" and "Day" once the jury starts.
+  const voted = slice.match(
+    /(\d+)(?:st|nd|rd|th)\s+Voted Out(?:\s|<br\s*\/?>)+(?:(?:\d+)(?:st|nd|rd|th)\s+Jury Member(?:\s|<br\s*\/?>)+)?Day\s+(\d+)/i,
+  );
   if (voted) return `${ordinal(Number(voted[1]))} voted out · Day ${Number(voted[2])}`;
   const quit = slice.match(/Quit(?:\s|<br\s*\/?>)+Day\s+(\d+)/i);
   if (quit) return `Quit · Day ${Number(quit[1])}`;

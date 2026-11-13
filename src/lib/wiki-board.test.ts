@@ -32,6 +32,21 @@ test("parseWikiBoots reads voted out, quit, and skips people still in", () => {
   );
 });
 
+test("a jury line between voted out and the day still counts", () => {
+  const wikitext = `{{nowrap|8th Voted Out<br />1st Jury Member<br />Day 14}}
+'''[[Brady Booker]]'''<br />27, Knoxville
+| {{nowrap|8th Voted Out<br />1st Jury Member<br />Day 14}}
+|-
+'''[[Carter Krull]]'''
+| Savu
+`;
+  const boots = parseWikiBoots(wikitext, [{ id: "brady", first: "Brady", last: "Booker" }], Date.parse("2026-11-08T18:00:00.000Z"));
+  assert.deepEqual(
+    boots.map((boot) => boot.boot),
+    ["8th voted out · Day 14"],
+  );
+});
+
 test("a Wednesday night boot stays hidden until 9:30pm Eastern", () => {
   const during = Date.parse("2026-10-22T01:00:00.000Z");
   assert.equal(revealAtFor(during), "2026-10-22T01:30:00.000Z");

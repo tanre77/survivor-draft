@@ -68,7 +68,9 @@ export const contestants: Contestant[] = [
     hometown: "Knoxville, TN",
     job: "Pro wrestler",
     tribe: "toka",
-    status: "active",
+    status: "out",
+    boot: "8th voted out · Day 14",
+    revealAt: "2026-11-05T02:30:00.000Z",
   },
   {
     id: "carter",
